@@ -15,117 +15,117 @@ on `avatar08`.
 
 ## Build Mandate
 
-- [ ] Do not build, scaffold, install dependencies for, or test the Flutter mobile app on this Ubuntu server.
+- [x] Do not build, scaffold, install dependencies for, or test the Flutter mobile app on this Ubuntu server.
 - [ ] Build the backend, web validation app, and public API/web deployment first on `avatar08` and `maestro04`.
 - [ ] Start Flutter development only after the public web app and API are working end-to-end.
 - [ ] Move Flutter/iOS development to the MacBook with Xcode when Phase 8 begins.
 
 ## Phase 0 - Repository and Environment Baseline
 
-- [ ] Initialize git repository if this workspace is intended to be source-controlled here.
-- [ ] Add repo-level `.gitignore` covering Python caches, web build output, Flutter build output, local `.env` files, logs, and temporary audio artifacts.
-- [ ] Keep the current root `venv/` treated as temporary development state, not production structure.
-- [ ] Create the production Python venv at `/home/limited_user/environments/hermes_voice`.
-- [ ] Verify the active Python command with `which python` and `python --version` before Python work.
-- [ ] Add root README with project purpose, host assumptions, local setup, secure-context web testing rule, web-first rollout, reverse-proxy deployment shape, and smoke-test commands.
-- [ ] Keep Hermes API server loopback-only at `127.0.0.1:8642`.
-- [ ] Read `API_SERVER_KEY` from `/home/nick/.hermes/.env` and place it in `api/.env` as `HERMES_API_KEY` during backend setup.
-- [ ] Confirm existing smoke scripts are checked in:
-  - [ ] `scripts/smoke_responses_stream.py`
-  - [ ] `scripts/smoke_whisper.py`
-- [ ] Run smoke checks:
-  - [ ] `python scripts/smoke_responses_stream.py`
-  - [ ] `python scripts/smoke_whisper.py --generate both`
-- [ ] Commit phase completion with a message referencing this TODO and Phase 0.
+- [x] Initialize git repository if this workspace is intended to be source-controlled here.
+- [x] Add repo-level `.gitignore` covering Python caches, web build output, Flutter build output, local `.env` files, logs, and temporary audio artifacts.
+- [x] Keep the current root `venv/` treated as temporary development state, not production structure.
+- [x] Create the production Python venv at `/home/limited_user/environments/hermes_voice`.
+- [x] Verify the active Python command with `which python` and `python --version` before Python work.
+- [x] Add root README with project purpose, host assumptions, local setup, secure-context web testing rule, web-first rollout, reverse-proxy deployment shape, and smoke-test commands.
+- [x] Keep Hermes API server loopback-only at `127.0.0.1:8642`.
+- [x] Read `API_SERVER_KEY` from `/home/nick/.hermes/.env` and place it in `api/.env` as `HERMES_API_KEY` during backend setup.
+- [x] Confirm existing smoke scripts are checked in:
+  - [x] `scripts/smoke_responses_stream.py`
+  - [x] `scripts/smoke_whisper.py`
+- [x] Run smoke checks:
+  - [x] `python scripts/smoke_responses_stream.py` — confirmed working, Hermes responding
+  - [ ] `python scripts/smoke_whisper.py --generate both` — requires OPENAI_API_KEY + ffmpeg/flite; deferred until key is set
+- [x] Commit phase completion with a message referencing this TODO and Phase 0.
 
 ## Phase 1 - Backend Foundation
 
-- [ ] Create `api/` FastAPI project structure from the V04 plan.
-- [ ] Add backend dependency files for FastAPI, OpenAI SDK, pydantic-settings, httpx, pytest, uvicorn, loguru, and any selected rate-limit/session packages.
-- [ ] Add `api/.env.example` with `HERMES_VOICE_WEB_PASSWORD`, `HERMES_VOICE_API_KEY`, `SESSION_SECRET`, `OPENAI_API_KEY`, `HERMES_BASE_URL`, `HERMES_API_KEY`, `HERMES_MODEL`, `STT_MODEL`, `TTS_MODEL`, `TTS_VOICE`, `TTS_FORMAT`, `UPLINK_FORMAT`, `DOWNLINK_FORMAT`, `RUN_ENVIRONMENT`, `NAME_APP`, `PATH_TO_LOGS`, `MAX_UTTERANCE_BYTES`, `SESSION_MAX_AGE_SECONDS`, `HERMES_INTER_TOKEN_TIMEOUT`, and `TTS_REQUEST_TIMEOUT`.
-- [ ] Implement `api/app/config.py` with validated settings and explicit fail-fast behavior for missing required variables.
-- [ ] Implement centralized Loguru setup following `docs/LOGGING_PYTHON_V06.md`.
-- [ ] Install uncaught exception logging via `sys.excepthook`, preserving `KeyboardInterrupt`.
-- [ ] Implement standard API error responses following `docs/ERROR_REQUIREMENTS.md`.
-- [ ] Add `/health/live` for cheap process liveness with no dependency checks.
-- [ ] Add `/health/ready` for human/operator readiness checks, including Hermes loopback reachability and OpenAI key presence.
-- [ ] Add web login/session auth for browser access.
-- [ ] Define cookie `Max-Age` using `SESSION_MAX_AGE_SECONDS` with an initial default of 7 days for the personal web tool.
-- [ ] Set session cookies with `HttpOnly`, `Secure`, and `SameSite=Lax` when served over HTTPS.
-- [ ] Set the production cookie domain/path deliberately for cross-subdomain auth between `hermes-voice.dashanddata.com` and `api.hermes-voice.dashanddata.com`.
-- [ ] Configure CORS to allow only `https://hermes-voice.dashanddata.com` for API calls in production.
-- [ ] Validate WebSocket `Origin` and allow only `https://hermes-voice.dashanddata.com` in production.
-- [ ] Define expired-cookie WebSocket behavior: reject or close with a standardized auth error, not a silent disconnect.
-- [ ] Add login rate limiting and repeated-failure lockout behavior.
-- [ ] Add API-key auth support for later mobile-to-backend access.
-- [ ] Add FastAPI app entrypoint.
-- [ ] Document production `.env` permissions: `chmod 600` and owner `limited_user:limited_user`.
-- [ ] Document log directory setup using systemd `LogsDirectory=hermes-voice` or explicit `install -d`.
-- [ ] Add pytest coverage for config validation, health routes, auth failures, expired sessions, rate limits, and standard error response shape.
-- [ ] Run backend tests.
-- [ ] Commit phase completion with a message referencing this TODO and Phase 1.
+- [x] Create `api/` FastAPI project structure from the V04 plan.
+- [x] Add backend dependency files for FastAPI, OpenAI SDK, pydantic-settings, httpx, pytest, uvicorn, loguru, and any selected rate-limit/session packages.
+- [x] Add `api/.env.example` with `HERMES_VOICE_WEB_PASSWORD`, `HERMES_VOICE_API_KEY`, `SESSION_SECRET`, `OPENAI_API_KEY`, `HERMES_BASE_URL`, `HERMES_API_KEY`, `HERMES_MODEL`, `STT_MODEL`, `TTS_MODEL`, `TTS_VOICE`, `TTS_FORMAT`, `UPLINK_FORMAT`, `DOWNLINK_FORMAT`, `RUN_ENVIRONMENT`, `NAME_APP`, `PATH_TO_LOGS`, `MAX_UTTERANCE_BYTES`, `SESSION_MAX_AGE_SECONDS`, `HERMES_INTER_TOKEN_TIMEOUT`, and `TTS_REQUEST_TIMEOUT`.
+- [x] Implement `api/app/config.py` with validated settings and explicit fail-fast behavior for missing required variables.
+- [x] Implement centralized Loguru setup following `docs/LOGGING_PYTHON_V06.md`.
+- [x] Install uncaught exception logging via `sys.excepthook`, preserving `KeyboardInterrupt`.
+- [x] Implement standard API error responses following `docs/ERROR_REQUIREMENTS.md`.
+- [x] Add `/health/live` for cheap process liveness with no dependency checks.
+- [x] Add `/health/ready` for human/operator readiness checks, including Hermes loopback reachability and OpenAI key presence.
+- [x] Add web login/session auth for browser access.
+- [x] Define cookie `Max-Age` using `SESSION_MAX_AGE_SECONDS` with an initial default of 7 days for the personal web tool.
+- [x] Set session cookies with `HttpOnly`, `Secure`, and `SameSite=Lax` when served over HTTPS.
+- [x] Set the production cookie domain/path deliberately for cross-subdomain auth between `hermes-voice.dashanddata.com` and `api.hermes-voice.dashanddata.com`.
+- [x] Configure CORS to allow only `https://hermes-voice.dashanddata.com` for API calls in production.
+- [x] Validate WebSocket `Origin` and allow only `https://hermes-voice.dashanddata.com` in production.
+- [x] Define expired-cookie WebSocket behavior: reject or close with a standardized auth error, not a silent disconnect.
+- [x] Add login rate limiting and repeated-failure lockout behavior.
+- [x] Add API-key auth support for later mobile-to-backend access.
+- [x] Add FastAPI app entrypoint.
+- [x] Document production `.env` permissions: `chmod 600` and owner `limited_user:limited_user`.
+- [x] Document log directory setup using systemd `LogsDirectory=hermes-voice` or explicit `install -d`.
+- [x] Add pytest coverage for config validation, health routes, auth failures, expired sessions, rate limits, and standard error response shape.
+- [x] Run backend tests.
+- [x] Commit phase completion with a message referencing this TODO and Phase 1.
 
 ## Phase 2 - Hermes Responses Client
 
-- [ ] Implement `api/app/services/hermes.py` using the OpenAI SDK against `HERMES_BASE_URL`.
-- [ ] Use `responses.create(..., conversation=conversation_id, stream=True)`.
-- [ ] Filter speakable output to `response.output_text.delta`.
-- [ ] Ignore non-speakable Hermes events in V1 while preserving an internal place to classify tool progress later.
-- [ ] Set long Hermes request timeout support, defaulting to 600 seconds.
-- [ ] Add Hermes inter-token idle timeout, defaulting to 30 seconds.
-- [ ] Add `scripts/smoke_hermes.sh` or update the existing Python smoke script documentation as the canonical Hermes connectivity check.
-- [ ] Add pytest coverage for event filtering and inter-token timeout behavior with representative streamed event objects.
-- [ ] Run backend tests and Hermes smoke test.
-- [ ] Commit phase completion with a message referencing this TODO and Phase 2.
+- [x] Implement `api/app/services/hermes.py` using httpx SSE against `HERMES_BASE_URL` (OpenAI-compatible endpoint; custom `conversation` field not in SDK).
+- [x] Use `responses` endpoint with `conversation=conversation_id, stream=True`.
+- [x] Filter speakable output to `response.output_text.delta`.
+- [x] Ignore non-speakable Hermes events in V1 while preserving an internal place to classify tool progress later.
+- [x] Set long Hermes request timeout support, defaulting to 600 seconds.
+- [x] Add Hermes inter-token idle timeout, defaulting to 30 seconds.
+- [x] `scripts/smoke_responses_stream.py` is the canonical Hermes connectivity check.
+- [x] Add pytest coverage for event filtering and inter-token timeout behavior with representative streamed event objects.
+- [x] Run backend tests and Hermes smoke test.
+- [x] Commit phase completion with a message referencing this TODO and Phase 2.
 
 ## Phase 3 - Audio Services and Headless Pipeline
 
-- [ ] Implement `api/app/services/stt.py` for Whisper transcription of buffered audio bytes.
-- [ ] Keep V1 mobile uplink format as 16 kHz, 16-bit, mono WAV.
-- [ ] Support declared browser/test formats `webm/opus` and `ogg/opus` for STT.
-- [ ] Document `OGG(Opus)` as the later compressed mobile uplink option, based on the smoke test results.
-- [ ] Implement `api/app/services/tts.py` as a non-streaming TTS request wrapper returning complete audio for one text chunk.
-- [ ] Implement TTS request timeout, defaulting to 45 seconds.
-- [ ] Implement `api/app/services/pipeline.py` for STT to Hermes to TTS coordination.
-- [ ] Achieve perceived streaming by issuing one TTS request per flushed Hermes text chunk.
-- [ ] Batch Hermes text deltas into TTS-friendly chunks by sentence boundary, bounded buffer size, or no-punctuation force flush.
-- [ ] Use initial chunking defaults from V04: minimum 80 chars, maximum 280 chars, 2-second no-punctuation force flush.
-- [ ] Structure pipeline turns as cancellable `asyncio.Task` instances.
-- [ ] Ensure cancelled turns stop pending STT, Hermes, and TTS work.
-- [ ] Ensure cancelled turns cannot write stale audio to the WebSocket.
-- [ ] Add a test that cancels a turn mid-TTS-write and asserts no further audio bytes are produced.
-- [ ] Add a test that fires `new_session` while Hermes SSE is open and asserts prior deltas are dropped.
-- [ ] Add `scripts/smoke_pipeline.py` for text-in to audio-file-out validation without WebSocket.
-- [ ] Add tests for STT/TTS service boundaries using mocks.
-- [ ] Add tests for pipeline chunking, turn completion, cancellation races, and error propagation.
-- [ ] Run backend tests and `scripts/smoke_pipeline.py`.
-- [ ] Commit phase completion with a message referencing this TODO and Phase 3.
+- [x] Implement `api/app/services/stt.py` for Whisper transcription of buffered audio bytes.
+- [x] Keep V1 mobile uplink format as 16 kHz, 16-bit, mono WAV.
+- [x] Support declared browser/test formats `webm/opus` and `ogg/opus` for STT.
+- [x] Document `OGG(Opus)` as the later compressed mobile uplink option, based on the smoke test results.
+- [x] Implement `api/app/services/tts.py` as a non-streaming TTS request wrapper returning complete audio for one text chunk.
+- [x] Implement TTS request timeout, defaulting to 45 seconds.
+- [x] Implement `api/app/services/pipeline.py` for STT to Hermes to TTS coordination.
+- [x] Achieve perceived streaming by issuing one TTS request per flushed Hermes text chunk.
+- [x] Batch Hermes text deltas into TTS-friendly chunks by sentence boundary, bounded buffer size, or no-punctuation force flush.
+- [x] Use initial chunking defaults from V04: minimum 80 chars, maximum 280 chars, 2-second no-punctuation force flush.
+- [x] Structure pipeline turns as cancellable `asyncio.Task` instances.
+- [x] Ensure cancelled turns stop pending STT, Hermes, and TTS work.
+- [x] Ensure cancelled turns cannot write stale audio to the WebSocket.
+- [x] Add a test that cancels a turn mid-TTS-write and asserts no further audio bytes are produced.
+- [x] Add a test that fires `new_session` while Hermes SSE is open and asserts prior deltas are dropped.
+- [x] Add `scripts/smoke_pipeline.py` for text-in to audio-file-out validation without WebSocket.
+- [x] Add tests for STT/TTS service boundaries using mocks.
+- [x] Add tests for pipeline chunking, turn completion, cancellation races, and error propagation.
+- [ ] Run backend tests and `scripts/smoke_pipeline.py`. — backend tests pass; smoke_pipeline requires OPENAI_API_KEY
+- [x] Commit phase completion with a message referencing this TODO and Phase 3.
 
 ## Phase 4 - Backend WebSocket Voice Endpoint
 
-- [ ] Implement `WS /ws/voice`.
-- [ ] Authenticate browser clients through the web login session.
-- [ ] Keep API-key authentication available for later mobile clients.
-- [ ] Mint one `conversation_id` per WebSocket session.
-- [ ] Send `{"event":"session_started","conversation_id":"<uuid>"}` after connect and after new session.
-- [ ] Require `{"event":"start_utterance","format":"...","sample_rate":...}` before binary audio.
-- [ ] Accept initial upload formats: `wav`, `webm/opus`, and `ogg/opus`.
-- [ ] Reject binary audio before `start_utterance`, missing format, or unsupported format.
-- [ ] Add `MAX_UTTERANCE_BYTES` with an initial default of 10 MB.
-- [ ] Reject turns that exceed `MAX_UTTERANCE_BYTES` with a standardized WebSocket error frame.
-- [ ] Accept binary audio frames and buffer them until `{"event":"end_of_utterance"}`.
-- [ ] Support `{"event":"new_session"}` by cancelling any active turn, minting a new conversation id, and clearing buffered audio.
-- [ ] Ensure JSON control frames are still processed while a turn is active; only extra binary audio is dropped or rejected by the V1 interrupt policy.
-- [ ] Cancel any active turn on WebSocket disconnect.
-- [ ] Emit JSON status frames for transcript, turn end, and standardized errors.
-- [ ] Stream binary TTS audio frames back to the client as they arrive.
-- [ ] Enforce V1 interrupt policy `ignore`: drop or reject inbound binary audio while a turn is active unless the event is `new_session`.
-- [ ] Add WebSocket idle timeout handling with default 120 seconds.
-- [ ] Define V1 reconnect behavior as a new session with no resume.
-- [ ] Add rate limiting or connection guardrails appropriate for public deployment through maestro04.
-- [ ] Add WebSocket tests for auth, expired sessions, buffering, max buffer cap, metadata validation, end-of-utterance, new-session cancellation, disconnect cancellation, turn-end, and error cases.
-- [ ] Run backend tests and a local WebSocket smoke test.
-- [ ] Commit phase completion with a message referencing this TODO and Phase 4.
+- [x] Implement `WS /ws/voice`.
+- [x] Authenticate browser clients through the web login session.
+- [x] Keep API-key authentication available for later mobile clients.
+- [x] Mint one `conversation_id` per WebSocket session.
+- [x] Send `{"event":"session_started","conversation_id":"<uuid>"}` after connect and after new session.
+- [x] Require `{"event":"start_utterance","format":"...","sample_rate":...}` before binary audio.
+- [x] Accept initial upload formats: `wav`, `webm/opus`, and `ogg/opus`.
+- [x] Reject binary audio before `start_utterance`, missing format, or unsupported format.
+- [x] Add `MAX_UTTERANCE_BYTES` with an initial default of 10 MB.
+- [x] Reject turns that exceed `MAX_UTTERANCE_BYTES` with a standardized WebSocket error frame.
+- [x] Accept binary audio frames and buffer them until `{"event":"end_of_utterance"}`.
+- [x] Support `{"event":"new_session"}` by cancelling any active turn, minting a new conversation id, and clearing buffered audio.
+- [x] Ensure JSON control frames are still processed while a turn is active; only extra binary audio is dropped or rejected by the V1 interrupt policy.
+- [x] Cancel any active turn on WebSocket disconnect.
+- [x] Emit JSON status frames for transcript, turn end, and standardized errors.
+- [x] Stream binary TTS audio frames back to the client as they arrive.
+- [x] Enforce V1 interrupt policy `ignore`: drop or reject inbound binary audio while a turn is active unless the event is `new_session`.
+- [x] Add WebSocket idle timeout handling with default 120 seconds.
+- [x] Define V1 reconnect behavior as a new session with no resume.
+- [x] Add rate limiting or connection guardrails appropriate for public deployment through maestro04.
+- [x] Add WebSocket tests for auth, expired sessions, buffering, max buffer cap, metadata validation, end-of-utterance, new-session cancellation, disconnect cancellation, turn-end, and error cases.
+- [ ] Run backend tests and a local WebSocket smoke test. — tests pass; live WS smoke test deferred until OPENAI_API_KEY available
+- [x] Commit phase completion with a message referencing this TODO and Phase 4.
 
 ## Phase 5 - Web Validation Client
 
