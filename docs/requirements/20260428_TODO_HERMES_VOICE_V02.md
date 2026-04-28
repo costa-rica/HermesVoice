@@ -13,6 +13,13 @@ Public traffic enters through `maestro04` Nginx, then proxies to the backend on
 `https://api.hermes-voice.dashanddata.com`. Hermes itself remains loopback-only
 on `avatar08`.
 
+## Build Mandate
+
+- [ ] Do not build, scaffold, install dependencies for, or test the Flutter mobile app on this Ubuntu server.
+- [ ] Build the backend, web validation app, and public API/web deployment first on `avatar08` and `maestro04`.
+- [ ] Start Flutter development only after the public web app and API are working end-to-end.
+- [ ] Move Flutter/iOS development to the MacBook with Xcode when Phase 8 begins.
+
 ## Phase 0 - Repository and Environment Baseline
 
 - [ ] Initialize git repository if this workspace is intended to be source-controlled here.
@@ -199,6 +206,8 @@ on `avatar08`.
 
 ## Phase 8 - Flutter Mobile App on Mac
 
+- [ ] Confirm Phases 1-7 are complete before starting mobile work.
+- [ ] Move active development to the MacBook; do not run Flutter or Xcode tasks on `avatar08`.
 - [ ] Create `mobile/` Flutter project on a Mac with Xcode installed.
 - [ ] Start with package candidates:
   - [ ] Audio capture: `record`.
