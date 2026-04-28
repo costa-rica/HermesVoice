@@ -1,0 +1,77 @@
+# Local environment
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+ENV/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Logs and runtime files
+logs/
+*.log
+*.pid
+*.sock
+
+# Audio smoke-test artifacts
+*.wav
+*.aiff
+*.opus
+*.ogg
+*.oga
+*.mp3
+*.m4a
+*.flac
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+build/
+
+# Android generated output
+android/.gradle/
+android/app/build/
+android/local.properties
+
+# iOS / macOS generated output
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Runner/GeneratedPluginRegistrant.*
+ios/build/
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/ephemeral/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+DerivedData/
+
+# Editors and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
