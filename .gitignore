@@ -42,8 +42,15 @@ logs/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
-pubspec.lock
 build/
+
+# Web / JavaScript
+node_modules/
+web/dist/
+web/build/
+web/.vite/
+web/.next/
+web/coverage/
 
 # Android generated output
 android/.gradle/
