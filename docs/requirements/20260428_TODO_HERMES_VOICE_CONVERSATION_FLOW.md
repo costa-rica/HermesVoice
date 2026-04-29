@@ -153,19 +153,21 @@ Files likely touched:
 
 Tasks:
 
-- [ ] Re-run the Phase 0 two-turn baseline test. If it now passes (because Phase 2/3 cleanups fixed it), convert any xfail to a passing assertion and skip the remaining bullets.
-- [ ] If still failing, narrow the cause via temporary, locally-gated debug logging (constant or env flag) in `web/src/app.ts` `handleWsJson`/`handleWsBinary` and per inbound/emitted frame in `api/app/routes/voice.py`. Reproduce two consecutive PTT turns and capture the divergence.
-- [ ] Apply the smallest fix that restores second-turn flow. Likely candidates: stale server `utterance_started` / `current_format`, `AudioQueue` re-entrancy after drain, suspended `AudioContext` not resumed on subsequent playback, or a misinterpreted second-fire of `turn_completed`/`turn_end`.
-- [ ] Remove the temporary debug logging before commit.
-- [ ] Promote the Phase 0 two-turn test from xfail (if any) to a hard assertion. Add a third-turn assertion if cheap.
+- [x] Re-run the Phase 0 two-turn baseline test. **Passes** — Phase 2/3 cleanups (AudioContext resume, state reset, server-driven active_state) were sufficient. Remaining debug/fix bullets skipped per TODO guidance.
+- [x] If still failing, narrow the cause… (skipped — not needed)
+- [x] Apply the smallest fix… (skipped — not needed)
+- [x] Remove the temporary debug logging before commit. (none was added)
+- [x] Promote the Phase 0 two-turn test from xfail (if any) to a hard assertion. Add a third-turn assertion if cheap. **No xfail markers existed**; added `test_three_consecutive_turns_all_complete` as a third-turn hard assertion.
+
+**Phase 4 finding:** `voice.py` WebSocket state management is correct across multiple turns — `cancel_active_turn()` resets `active_task = None` even when the prior task completed naturally, preventing stale task references. No server-side fix was required.
 
 Checks:
 
-- [ ] Backend: `pytest` passes, including the two-turn (and ideally three-turn) test.
-- [ ] Web: `npm run build` succeeds.
+- [x] Backend: `pytest` passes (34/34, including 3-turn test).
+- [x] Web: `npm run build` succeeds.
 - [ ] Manual smoke: three consecutive PTT turns succeed in the browser without reload.
-- [ ] Update checkboxes above only after checks pass.
-- [ ] Commit referencing this TODO file and Phase 4.
+- [x] Update checkboxes above only after checks pass.
+- [x] Commit referencing this TODO file and Phase 4.
 
 ## Phase 5 — Hermes tool/approval event discovery (gate for Phase 6)
 

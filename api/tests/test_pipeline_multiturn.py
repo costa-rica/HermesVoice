@@ -122,6 +122,34 @@ async def test_two_consecutive_turns_both_complete():
         assert len(sent_bytes) >= 1, f"Turn {turn_id} produced no audio"
 
 
+async def test_three_consecutive_turns_all_complete():
+    """Three sequential turns each complete successfully — pipeline remains stateless."""
+    from app.services.pipeline import run_voice_turn
+
+    for turn_id in (1, 2, 3):
+        sent_json, sent_bytes, send_json, send_bytes = _make_callbacks()
+
+        with (
+            patch("app.services.pipeline.transcribe", _fake_stt),
+            patch("app.services.pipeline.stream_hermes_text", _fake_hermes),
+            patch("app.services.pipeline.synthesize", _fake_tts),
+        ):
+            await run_voice_turn(
+                audio_bytes=b"\x00",
+                audio_format="wav",
+                conversation_id="cid-three",
+                send_json=send_json,
+                send_bytes=send_bytes,
+                turn_id=turn_id,
+                get_active_turn_id=lambda tid=turn_id: tid,
+            )
+
+        events = [f["event"] for f in sent_json]
+        assert "turn_completed" in events, f"Turn {turn_id} did not complete"
+        assert "assistant_text" in events, f"Turn {turn_id} missing assistant_text"
+        assert len(sent_bytes) >= 1, f"Turn {turn_id} produced no audio"
+
+
 # ---------------------------------------------------------------------------
 # Phase 0, test 3: stale turn_id prevents audio write
 # ---------------------------------------------------------------------------
