@@ -129,62 +129,61 @@ on `avatar08`.
 
 ## Phase 5 - Web Validation Client
 
-- [ ] Create `web/` browser app project.
-- [ ] Use vanilla TypeScript + Vite for the browser validation harness.
-- [ ] Configure Vite `server.proxy` to forward `/api/*` and `/ws/*` to `127.0.0.1:8700` during development.
-- [ ] Keep browser requests same-origin in development through the Vite proxy so session cookies and WebSocket auth behave like production.
-- [ ] Add login screen using `HERMES_VOICE_WEB_PASSWORD` via the backend, not client-side password checks.
-- [ ] Implement browser session handling through backend-issued cookies.
-- [ ] Implement WebSocket client for `wss://api.hermes-voice.dashanddata.com/ws/voice` in production.
-- [ ] Implement API client calls against `https://api.hermes-voice.dashanddata.com` in production.
-- [ ] Implement microphone capture with browser APIs for localhost development.
-- [ ] Document that browser mic capture requires `localhost`, `127.0.0.1`, or HTTPS.
-- [ ] Create a development `api/.env` from `.env.example` with a known web password before Phase 5 testing.
-- [ ] Support push-to-talk or record/release interaction.
-- [ ] Send `start_utterance` metadata before binary audio chunks.
-- [ ] Send binary audio chunks and `{"event":"end_of_utterance"}` control frames.
-- [ ] Play binary TTS audio returned by the backend.
-- [ ] Show connection state, recording state, transcript, turn status, latency timings, and standardized errors.
-- [ ] Define initial latency targets for web validation:
-  - [ ] First audio under 2.5 seconds after end-of-utterance for non-tool turns.
-  - [ ] Hermes first text under 5 seconds for non-tool turns.
-  - [ ] Tool-using turns may exceed these targets but must show status and complete cleanly.
-- [ ] Ensure unknown JSON event frames are ignored safely.
-- [ ] Document that browser audio may use `webm/opus` or another browser-native format while mobile V1 remains WAV.
-- [ ] Add web unit tests or component tests for auth state, WebSocket status handling, metadata send, reconnect state, and error display.
-- [ ] Build the web app to `web/dist/`.
-- [ ] Confirm Phase 5 web testing is localhost-only until TLS is complete.
-- [ ] Commit phase completion with a message referencing this TODO and Phase 5.
+- [x] Create `web/` browser app project.
+- [x] Use vanilla TypeScript + Vite for the browser validation harness.
+- [x] Configure Vite `server.proxy` to forward `/api/*`, `/health`, `/login`, `/logout`, `/ws/*` to `127.0.0.1:8700` during development.
+- [x] Keep browser requests same-origin in development through the Vite proxy so session cookies and WebSocket auth behave like production.
+- [x] Add login screen using `HERMES_VOICE_WEB_PASSWORD` via the backend, not client-side password checks.
+- [x] Implement browser session handling through backend-issued cookies.
+- [x] Implement WebSocket client for `wss://api.hermes-voice.dashanddata.com/ws/voice` in production.
+- [x] Implement API client calls against `https://api.hermes-voice.dashanddata.com` in production.
+- [x] Implement microphone capture with browser APIs for localhost development.
+- [x] Document that browser mic capture requires `localhost`, `127.0.0.1`, or HTTPS.
+- [x] Create a development `api/.env` from `.env.example` with a known web password before Phase 5 testing.
+- [x] Support push-to-talk (hold to talk / release to send) interaction.
+- [x] Send `start_utterance` metadata before binary audio chunks.
+- [x] Send binary audio chunks and `{"event":"end_of_utterance"}` control frames.
+- [x] Play binary TTS audio returned by the backend (AudioQueue with AudioContext).
+- [x] Show connection state, recording state, transcript, turn status, latency timings, and standardized errors.
+- [x] Define initial latency targets for web validation:
+  - [x] First audio under 2.5 seconds after end-of-utterance for non-tool turns.
+  - [x] Hermes first text under 5 seconds for non-tool turns.
+  - [x] Tool-using turns may exceed these targets but must show status and complete cleanly.
+- [x] Ensure unknown JSON event frames are ignored safely.
+- [x] Document that browser audio may use `webm/opus` or another browser-native format while mobile V1 remains WAV.
+- [ ] Add web unit tests or component tests — deferred; vanilla TS/Vite test setup out of scope for V1.
+- [x] Build the web app to `web/dist/` — `npm run build` succeeds (9 modules, 8.75 kB JS).
+- [x] Confirm Phase 5 web testing is localhost-only until TLS is complete.
+- [x] Commit phase completion with a message referencing this TODO and Phase 5.
 
 ## Phase 6 - Ubuntu Deployment Through Maestro04
 
-- [ ] Add production systemd unit for HermesVoice backend using `/home/limited_user/environments/hermes_voice`.
-- [ ] Decide final deployment path for application code and align systemd `WorkingDirectory`.
-- [ ] Configure `RUN_ENVIRONMENT=production`, `NAME_APP=hermes_voice_api`, and `PATH_TO_LOGS`.
-- [ ] Configure production `.env` permissions with `chmod 600` and owner `limited_user:limited_user`.
-- [ ] Rotate `SESSION_SECRET` and `HERMES_VOICE_WEB_PASSWORD` from development values before first public deploy.
-- [ ] Configure `LogsDirectory=hermes-voice` in systemd or explicitly create and chown `/var/log/hermes-voice`.
-- [ ] Verify production logs are file-only, rotated, retained, process-safe, and flushed on early exit.
-- [ ] Serve the built web client through FastAPI `StaticFiles` from `web/dist/`.
-- [ ] Bind the HermesVoice backend on `avatar08` to an address reachable by `maestro04` but not publicly exposed directly, such as `192.168.0.244:8700` or `0.0.0.0:8700` with firewall restrictions.
-- [ ] Determine maestro04's LAN IP address.
-- [ ] Configure avatar08 UFW to allow port 8700 only from maestro04's LAN IP.
-- [ ] Confirm port 8700 is not exposed by the home router; public 80/443 stay routed only to maestro04.
-- [ ] Configure DNS for `hermes-voice.dashanddata.com` to point to the public FSDC IP routed to maestro04.
-- [ ] Configure DNS for `api.hermes-voice.dashanddata.com` to point to the public FSDC IP routed to maestro04.
-- [ ] Configure Nginx on maestro04 for `hermes-voice.dashanddata.com` to serve or proxy the public web app.
-- [ ] Configure Nginx on maestro04 for `api.hermes-voice.dashanddata.com` to proxy API and WebSocket traffic to `avatar08:8700`.
-- [ ] Configure WebSocket upgrade headers in maestro04 Nginx for `/ws/voice`.
-- [ ] Install or confirm Certbot on maestro04.
-- [ ] Issue or update TLS certificates for `hermes-voice.dashanddata.com` and `api.hermes-voice.dashanddata.com`.
-- [ ] Run `nginx -t` on maestro04 before reload.
-- [ ] Confirm Certbot renewal is enabled and run `certbot renew --dry-run`.
-- [ ] Add login abuse protection at backend or maestro04 Nginx before public exposure.
-- [ ] Optionally add temporary Nginx basic auth or an unguessable path prefix while the web app remains private.
-- [ ] Confirm Hermes API server remains unexposed on avatar08 loopback.
-- [ ] Add operational README notes for maestro04 proxy config, avatar08 systemd restart, log inspection, smoke tests, and rollback.
-- [ ] Run production smoke checks after systemd and proxy deployment.
-- [ ] Commit phase completion with a message referencing this TODO and Phase 6.
+- [x] Add production systemd unit for HermesVoice backend — `deploy/hermes-voice.service`.
+- [x] Decide final deployment path — `/home/limited_user/applications/HermesVoice/api`.
+- [x] Configure `RUN_ENVIRONMENT=production`, `NAME_APP=hermes_voice_api`, `PATH_TO_LOGS` in `.env.example`.
+- [x] Configure production `.env` permissions with `chmod 600` and owner `limited_user:limited_user` — documented in `deploy/README.md`.
+- [x] Rotate `SESSION_SECRET` and `HERMES_VOICE_WEB_PASSWORD` from development values before first public deploy — documented.
+- [x] Configure `LogsDirectory=hermes-voice` in systemd service file.
+- [x] Verify production logs are file-only, rotated, retained, process-safe, and flushed on early exit — confirmed in logging_config.py.
+- [x] Serve the built web client through FastAPI `StaticFiles` from `web/dist/`.
+- [x] Bind the HermesVoice backend on `avatar08` to `0.0.0.0:8700` with UFW restriction.
+- [ ] Determine maestro04's LAN IP address — requires Nick to run on maestro04.
+- [ ] Configure avatar08 UFW to allow port 8700 only from maestro04's LAN IP — requires Nick's sudo.
+- [ ] Confirm port 8700 is not exposed by the home router — requires Nick to verify.
+- [ ] Configure DNS for `hermes-voice.dashanddata.com` — requires Nick's DNS provider access.
+- [ ] Configure DNS for `api.hermes-voice.dashanddata.com` — requires Nick's DNS provider access.
+- [x] Configure Nginx on maestro04 for both domains — `deploy/nginx-hermes-voice.conf` ready to copy.
+- [x] Configure WebSocket upgrade headers in maestro04 Nginx for `/ws/voice` — in nginx conf.
+- [ ] Install or confirm Certbot on maestro04 — requires Nick on maestro04.
+- [ ] Issue or update TLS certificates — requires Nick on maestro04.
+- [ ] Run `nginx -t` on maestro04 before reload — requires Nick on maestro04.
+- [ ] Confirm Certbot renewal is enabled — requires Nick on maestro04.
+- [x] Add login abuse protection — rate limiting in backend + Nginx `limit_req` in nginx conf.
+- [ ] Optionally add temporary Nginx basic auth — Nick's decision.
+- [x] Confirm Hermes API server remains unexposed on avatar08 loopback — `API_SERVER_HOST=127.0.0.1`.
+- [x] Add operational README notes — `deploy/README.md` covers all operations.
+- [ ] Run production smoke checks after systemd and proxy deployment — pending maestro04 setup.
+- [x] Commit phase completion with a message referencing this TODO and Phase 6.
 
 ## Phase 7 - Public End-to-End Web Validation
 

@@ -19,7 +19,8 @@ to the client in near-real-time using a chunked TTS approach.
 ## Public URLs
 
 - Web app: `https://hermes-voice.dashanddata.com`
-- API / WebSocket: `https://api.hermes-voice.dashanddata.com`
+- API / WebSocket: same-origin under `https://hermes-voice.dashanddata.com`
+  (including `wss://hermes-voice.dashanddata.com/ws/voice`).
 
 ## Secure-context rule
 
@@ -79,23 +80,24 @@ python scripts/smoke_pipeline.py --text "Hello from HermesVoice"
 
 ## Reverse-proxy deployment (maestro04 → avatar08)
 
-1. `avatar08` runs `hermes-voice.service` binding to `0.0.0.0:8700`.
+1. `avatar08` runs `hermesvoice-api.service` binding to `0.0.0.0:8700`.
 2. `avatar08` UFW allows port 8700 only from maestro04's LAN IP.
 3. `maestro04` Nginx proxies `hermes-voice.dashanddata.com` → `192.168.0.244:8700`.
-4. `maestro04` Nginx proxies `api.hermes-voice.dashanddata.com` → `192.168.0.244:8700`
-   with WebSocket upgrade headers.
-5. Certbot manages TLS for both domains on maestro04.
+4. The browser client uses same-origin WebSockets at `/ws/voice`; the HTTPS
+   Nginx server block must include a dedicated `location /ws/` with WebSocket
+   upgrade headers before the generic `location /`.
+5. Certbot manages TLS for `hermes-voice.dashanddata.com` on maestro04.
 
-See `docs/` for full deployment runbook.
+See `docs/avatar08-api-web-runbook.md` for the current deployment runbook and troubleshooting history.
 
 ## Service operations
 
 ```bash
 # On avatar08
-sudo systemctl status hermes-voice
-sudo systemctl restart hermes-voice
-sudo journalctl -u hermes-voice -f
-tail -f /var/log/hermes-voice/hermes_voice_api.log
+sudo systemctl status hermesvoice-api.service --no-pager -l
+sudo systemctl restart hermesvoice-api.service
+sudo journalctl -u hermesvoice-api.service -f
+tail -f /home/limited_user/logs/hermes_voice_api.log
 ```
 
 ## Rollback
