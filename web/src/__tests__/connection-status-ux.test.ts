@@ -222,6 +222,17 @@ describe('connection status UX', () => {
     expect(pttBtn.disabled).toBe(false);
   });
 
+  it('PTT stays enabled while recording so mobile browsers do not cancel the press', async () => {
+    await connectAndReady(app);
+    const pttBtn = document.getElementById('btn-ptt') as HTMLButtonElement;
+
+    pttBtn.dispatchEvent(new Event('pointerdown'));
+
+    expect(pttBtn.disabled).toBe(false);
+    expect(pttBtn.textContent).toBe('Release to Send');
+    expect(pttBtn.classList.contains('recording')).toBe(true);
+  });
+
   // ── Heartbeat badge behavior ────────────────────────────────────────────────
 
   it('heartbeat reconnect shows checking not connecting', async () => {

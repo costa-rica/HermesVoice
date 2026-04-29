@@ -106,7 +106,11 @@ export class App {
     // Re-evaluate PTT disabled state whenever turn state changes
     const btn = document.getElementById('btn-ptt') as HTMLButtonElement;
     if (btn) {
-      btn.disabled = !(this.connState === 'connected' && this.sessionReady && state === 'idle');
+      btn.disabled = !(
+        this.connState === 'connected'
+        && this.sessionReady
+        && (state === 'idle' || state === 'listening' || state === 'recording')
+      );
     }
   }
 
