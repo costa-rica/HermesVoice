@@ -33,7 +33,7 @@ def _make_callbacks():
     return sent_json, sent_bytes, send_json, send_bytes
 
 
-async def _multi_delta_hermes(text: str, cid: str):
+async def _multi_delta_hermes(text: str, cid: str, **kwargs):
     yield "Once upon "
     yield "a time "
     yield "in a land far away."
@@ -78,7 +78,7 @@ async def test_assistant_text_single_delta():
     """Works correctly when Hermes yields a single delta."""
     from app.services.pipeline import run_voice_turn
 
-    async def single_delta(text: str, cid: str):
+    async def single_delta(text: str, cid: str, **kwargs):
         yield "short reply"
 
     sent_json, sent_bytes, send_json, send_bytes = _make_callbacks()

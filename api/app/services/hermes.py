@@ -20,6 +20,13 @@ ACCEPTED_ORIGINS = {
 
 SPEAKABLE_EVENT = "response.output_text.delta"
 
+VOICE_INSTRUCTIONS = (
+    "Respond conversationally and concisely. "
+    "Avoid markdown, bullet points, numbered lists, and headers unless explicitly requested. "
+    "Prefer short spoken answers. "
+    "Do not read out URLs or code verbatim unless asked."
+)
+
 
 async def _next_line_with_timeout(
     iterator: AsyncIterator[str],
@@ -43,6 +50,9 @@ async def _next_line_with_timeout(
 async def stream_hermes_text(
     text: str,
     conversation_id: str,
+    *,
+    source: str | None = None,
+    instructions: str | None = None,
 ) -> AsyncIterator[str]:
     """Stream speakable text deltas from Hermes, yielding one delta string at a time.
 
@@ -55,12 +65,16 @@ async def stream_hermes_text(
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
-    payload = {
+    payload: dict = {
         "model": settings.HERMES_MODEL,
         "input": text,
         "conversation": conversation_id,
         "stream": True,
     }
+    if source is not None:
+        payload["source"] = source
+    if instructions is not None:
+        payload["instructions"] = instructions
 
     first_event_timeout = settings.HERMES_FIRST_EVENT_TIMEOUT
     first_delta_timeout = settings.HERMES_FIRST_DELTA_TIMEOUT

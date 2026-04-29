@@ -144,7 +144,7 @@ async def _fake_stt(audio_bytes: bytes, audio_format: str) -> str:
     return "hello test"
 
 
-async def _fake_hermes(text: str, cid: str):
+async def _fake_hermes(text: str, cid: str, **kwargs):
     yield "response chunk one"
     yield " and two"
 

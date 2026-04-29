@@ -25,7 +25,7 @@ async def _fake_tts(text: str) -> bytes:
     return b"audio:" + text.encode()
 
 
-async def _fake_hermes(text: str, cid: str):
+async def _fake_hermes(text: str, cid: str, **kwargs):
     yield "a response"
 
 

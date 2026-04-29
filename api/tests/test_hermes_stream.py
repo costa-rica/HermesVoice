@@ -93,3 +93,69 @@ async def test_stream_inter_token_timeout_after_first_delta(monkeypatch):
             'data: {"type":"response.output_text.delta","delta":"hello"}',
             'data: {"type":"response.output_text.delta","delta":"again"}',
         ], monkeypatch, delays=[0.0, 0.0, 0.05])
+
+
+# ---------------------------------------------------------------------------
+# Payload field tests: source and instructions
+# ---------------------------------------------------------------------------
+
+
+def _make_capturing_client(captured: dict, lines: list[str]):
+    """Return a fake httpx.AsyncClient that records the json payload and streams lines."""
+
+    class _CapturingResponse(_FakeResponse):
+        def __init__(self):
+            super().__init__(lines)
+
+    class _CapturingClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def stream(self, method, url, *, json=None, headers=None, **kwargs):
+            captured["payload"] = json
+            return _CapturingResponse()
+
+    return _CapturingClient()
+
+
+async def test_stream_payload_includes_source_and_instructions(monkeypatch):
+    """stream_hermes_text adds source and instructions to the Hermes payload when provided."""
+    from app.services import hermes
+
+    captured: dict = {}
+    monkeypatch.setattr(hermes.settings, "HERMES_FIRST_EVENT_TIMEOUT", 0.02)
+    monkeypatch.setattr(hermes.settings, "HERMES_FIRST_DELTA_TIMEOUT", 0.02)
+    monkeypatch.setattr(hermes.settings, "HERMES_INTER_TOKEN_TIMEOUT", 0.02)
+    monkeypatch.setattr(
+        hermes.httpx, "AsyncClient",
+        lambda *a, **k: _make_capturing_client(captured, ["data: [DONE]"]),
+    )
+
+    _ = [d async for d in hermes.stream_hermes_text(
+        "hi", "cid-x", source="voice", instructions="be concise"
+    )]
+
+    assert captured["payload"]["source"] == "voice"
+    assert captured["payload"]["instructions"] == "be concise"
+
+
+async def test_stream_payload_omits_source_and_instructions_by_default(monkeypatch):
+    """stream_hermes_text omits source and instructions from payload when not provided."""
+    from app.services import hermes
+
+    captured: dict = {}
+    monkeypatch.setattr(hermes.settings, "HERMES_FIRST_EVENT_TIMEOUT", 0.02)
+    monkeypatch.setattr(hermes.settings, "HERMES_FIRST_DELTA_TIMEOUT", 0.02)
+    monkeypatch.setattr(hermes.settings, "HERMES_INTER_TOKEN_TIMEOUT", 0.02)
+    monkeypatch.setattr(
+        hermes.httpx, "AsyncClient",
+        lambda *a, **k: _make_capturing_client(captured, ["data: [DONE]"]),
+    )
+
+    _ = [d async for d in hermes.stream_hermes_text("hi", "cid-y")]
+
+    assert "source" not in captured["payload"]
+    assert "instructions" not in captured["payload"]

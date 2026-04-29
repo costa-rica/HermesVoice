@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from .hermes import stream_hermes_text
+from .hermes import VOICE_INSTRUCTIONS, stream_hermes_text
 from .latency import TurnTimer
 from .stt import transcribe
 from .tts import synthesize
@@ -24,6 +24,9 @@ async def _chunk_hermes_text(
     text: str,
     conversation_id: str,
     on_first_delta: Callable[[], None] | None = None,
+    *,
+    source: str | None = None,
+    instructions: str | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """Buffer Hermes text deltas and yield (tts_chunk, full_text_so_far) tuples.
 
@@ -36,7 +39,7 @@ async def _chunk_hermes_text(
     first_buffered_at: float | None = None
     first_delta_fired = False
 
-    async for delta in stream_hermes_text(text, conversation_id):
+    async for delta in stream_hermes_text(text, conversation_id, source=source, instructions=instructions):
         if not first_delta_fired:
             first_delta_fired = True
             if on_first_delta is not None:
@@ -186,7 +189,8 @@ async def run_voice_turn(
                 progress_task.cancel()
 
         async for chunk, full_text in _chunk_hermes_text(
-            transcript, conversation_id, on_first_delta=_on_first_delta
+            transcript, conversation_id, on_first_delta=_on_first_delta,
+            source="voice", instructions=VOICE_INSTRUCTIONS,
         ):
             full_assistant_text = full_text
             if get_active_turn_id() != turn_id:

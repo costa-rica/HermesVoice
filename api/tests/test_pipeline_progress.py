@@ -32,7 +32,7 @@ def _make_callbacks():
 async def test_thinking_progress_sent_before_slow_first_audio():
     from app.services.pipeline import run_voice_turn
 
-    async def slow_hermes(text: str, cid: str):
+    async def slow_hermes(text: str, cid: str, **kwargs):
         await asyncio.sleep(0.05)
         yield "slow response"
 
@@ -69,7 +69,7 @@ async def test_thinking_progress_sent_before_slow_first_audio():
 async def test_fast_hermes_does_not_emit_thinking_progress():
     from app.services.pipeline import run_voice_turn
 
-    async def fast_hermes(text: str, cid: str):
+    async def fast_hermes(text: str, cid: str, **kwargs):
         yield "fast response"
 
     sent_json, sent_bytes, send_json, send_bytes = _make_callbacks()

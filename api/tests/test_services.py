@@ -141,7 +141,7 @@ async def test_pipeline_chunks_by_sentence():
     """Sentence-ending punctuation triggers a flush when buffer >= min chars."""
     from app.services.pipeline import _chunk_hermes_text
 
-    async def fake_stream(text, cid):
+    async def fake_stream(text, cid, **kwargs):
         words = "This is a longer sentence that ends with a period and has enough chars."
         for ch in words:
             yield ch
@@ -162,7 +162,7 @@ async def test_pipeline_flushes_remaining_buffer():
 
     short_text = "short text"
 
-    async def fake_stream(text, cid):
+    async def fake_stream(text, cid, **kwargs):
         for ch in short_text:
             yield ch
 
@@ -192,7 +192,7 @@ async def test_pipeline_cancellation_stops_audio():
         await asyncio.sleep(0.05)
         return "hello"
 
-    async def slow_hermes(text, cid):
+    async def slow_hermes(text, cid, **kwargs):
         for ch in "hello world":
             await asyncio.sleep(0.01)
             yield ch

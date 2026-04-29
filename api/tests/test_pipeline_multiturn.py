@@ -25,7 +25,7 @@ async def _fake_stt(audio_bytes: bytes, audio_format: str) -> str:
     return "hello world"
 
 
-async def _fake_hermes(text: str, cid: str):
+async def _fake_hermes(text: str, cid: str, **kwargs):
     yield "short reply"
 
 
@@ -177,7 +177,7 @@ async def test_stale_turn_id_suppresses_output():
         await asyncio.sleep(0)  # yield to let advance_turn() set active_id=2
         return "hello"
 
-    async def fake_hermes(text, cid):
+    async def fake_hermes(text, cid, **kwargs):
         yield "reply"
 
     async def fake_tts(text):
