@@ -200,6 +200,21 @@ async def ws_voice(websocket: WebSocket) -> None:
                             )
                         )
 
+                    elif event == "cancel_turn":
+                        await cancel_active_turn()
+                        audio_buffer.clear()
+                        utterance_started = False
+                        utterance_started_at = None
+                        logger.info("cancel_turn received, active task cancelled")
+                        await send_json({"event": "active_state", "state": "idle"})
+                        await send_json({"event": "turn_end"})
+
+                    elif event == "ping":
+                        pong: dict = {"event": "pong"}
+                        if "id" in frame:
+                            pong["id"] = frame["id"]
+                        await send_json(pong)
+
                     elif event == "new_session":
                         await cancel_active_turn()
                         audio_buffer.clear()
