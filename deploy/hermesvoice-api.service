@@ -1,0 +1,24 @@
+[Unit]
+Description=HermesVoice API
+Documentation=https://hermes-voice.dashanddata.com
+After=network.target
+
+[Service]
+User=limited_user
+Group=limited_user
+WorkingDirectory=/home/limited_user/applications/HermesVoice/api
+EnvironmentFile=/home/limited_user/applications/HermesVoice/api/.env
+ExecStart=/home/limited_user/environments/hermes_voice/bin/uvicorn \
+    app.main:app \
+    --host 0.0.0.0 \
+    --port 8700 \
+    --workers 1 \
+    --log-level warning \
+    --no-access-log
+Restart=always
+RestartSec=2
+KillMode=mixed
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
