@@ -1,4 +1,4 @@
-import type { ChatMessage, ConnectionState, LatencyTimings, TurnState } from './types';
+import type { BadgeState, ChatMessage, LatencyTimings, TurnState } from './types';
 
 // Minimal DOM helpers
 
@@ -23,7 +23,10 @@ export function renderApp(root: HTMLElement): void {
 <div class="app">
   <header>
     <h1>HermesVoice</h1>
-    <div id="conn-state" class="badge disconnected">Disconnected</div>
+    <div class="conn-status">
+      <div id="conn-state" class="badge offline">Offline</div>
+      <button id="btn-check-conn" class="btn-check" title="Check connection" aria-label="Check connection">↻</button>
+    </div>
     <form method="post" action="/logout" style="margin:0">
       <button type="submit" class="btn-small">Logout</button>
     </form>
@@ -60,10 +63,16 @@ export function renderApp(root: HTMLElement): void {
   `.trim();
 }
 
-export function updateConnectionState(state: ConnectionState): void {
+const _BADGE_LABELS: Record<BadgeState, string> = {
+  ready: 'Ready',
+  checking: 'Checking…',
+  offline: 'Offline',
+};
+
+export function updateConnectionState(state: BadgeState): void {
   const badge = document.getElementById('conn-state');
   if (!badge) return;
-  badge.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+  badge.textContent = _BADGE_LABELS[state];
   badge.className = `badge ${state}`;
 }
 

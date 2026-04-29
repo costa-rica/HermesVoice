@@ -1,5 +1,5 @@
 import { AudioQueue, MicCapture } from './audio';
-import type { ChatMessage, ConnectionState, LatencyTimings, TurnState, WsJsonFrame } from './types';
+import type { BadgeState, ChatMessage, ConnectionState, LatencyTimings, TurnState, WsJsonFrame } from './types';
 import {
   appendMessage,
   clearError,
@@ -21,6 +21,7 @@ export class App {
   private ws: VoiceSocket;
 
   private connState: ConnectionState = 'disconnected';
+  private badgeState: BadgeState = 'offline';
   private turnState: TurnState = 'idle';
   private timings: LatencyTimings = {};
   private isRecording = false;
@@ -34,6 +35,10 @@ export class App {
   private heartbeatPongTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatSeq = 0;
   private lifecycleRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Tracks an in-flight manual check ping; null when no manual check is pending. */
+  private manualCheckPingId: string | null = null;
+  private manualCheckTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(root: HTMLElement) {
     renderApp(root);
@@ -57,6 +62,9 @@ export class App {
     const cancelBtn = document.getElementById('btn-cancel');
     cancelBtn?.addEventListener('click', () => this.sendCancelTurn());
 
+    const checkBtn = document.getElementById('btn-check-conn');
+    checkBtn?.addEventListener('click', () => this.checkConnection());
+
     // Stale-connection recovery on browser lifecycle events
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
     window.addEventListener('pageshow', () => this.handlePageShow());
@@ -73,17 +81,23 @@ export class App {
       return;
     }
     this.setConnState('connecting');
+    this.setBadgeState('checking');
     this.ws.connect();
   }
 
   private setConnState(state: ConnectionState): void {
     this.connState = state;
-    updateConnectionState(state);
+    // Badge is driven by setBadgeState() — not updated here.
     const btn = document.getElementById('btn-ptt') as HTMLButtonElement;
     if (btn) {
       // PTT is enabled only when connected AND sessionReady AND turnState=idle
       btn.disabled = !(state === 'connected' && this.sessionReady && this.turnState === 'idle');
     }
+  }
+
+  private setBadgeState(state: BadgeState): void {
+    this.badgeState = state;
+    updateConnectionState(state);
   }
 
   private setTurnState(state: TurnState): void {
@@ -97,7 +111,8 @@ export class App {
   }
 
   private handleWsOpen(): void {
-    // Do NOT mark as ready here — wait for session_started from server
+    // Do NOT mark as ready here — wait for session_started from server.
+    // Badge stays 'checking' until session_started arrives.
     this.setConnState('connected');
     clearError();
     this.startHeartbeat();
@@ -107,6 +122,7 @@ export class App {
     this.sessionReady = false;
     this.stopHeartbeat();
     this.setConnState('disconnected');
+    this.setBadgeState('offline');
     this.setTurnState('idle');
     this.audioQueue.clear();
     this.isRecording = false;
@@ -114,6 +130,7 @@ export class App {
     setTimeout(() => {
       if (this.connState === 'disconnected') {
         this.setConnState('connecting');
+        this.setBadgeState('checking');
         this.ws.connect();
       }
     }, 2000);
@@ -126,6 +143,7 @@ export class App {
       this.conversationId = (frame as { conversation_id: string }).conversation_id;
       this.sessionReady = true;
       this.setConnState('connected'); // re-evaluate PTT enabled state
+      this.setBadgeState('ready');
       this.setTurnState('idle');
       clearError();
     } else if (event === 'transcript') {
@@ -160,7 +178,7 @@ export class App {
       showToast(toastMsg);
       this.setTurnState('idle');
     } else if (event === 'pong') {
-      this.handlePong();
+      this.handlePong((frame as { id?: string }).id);
     } else if (event === 'error') {
       const errFrame = frame as { error: { code: string; message: string } };
       showError(`[${errFrame.error.code}] ${errFrame.error.message}`);
@@ -242,6 +260,7 @@ export class App {
     this.audioQueue.clear();
     this.setTurnState('idle');
     this.setConnState('connecting');
+    this.setBadgeState('checking');
     this.ws.reconnect();
   }
 
@@ -323,10 +342,39 @@ export class App {
     }, HEARTBEAT_TIMEOUT_MS);
   }
 
-  private handlePong(): void {
+  private handlePong(id?: string): void {
+    if (id !== undefined && id === this.manualCheckPingId) {
+      // Manual check pong — resolve the pending check
+      this.manualCheckPingId = null;
+      if (this.manualCheckTimer !== null) {
+        clearTimeout(this.manualCheckTimer);
+        this.manualCheckTimer = null;
+      }
+      this.setBadgeState('ready');
+      showToast('Connection checked');
+      return;
+    }
+    // Heartbeat pong
     if (this.heartbeatPongTimer !== null) {
       clearTimeout(this.heartbeatPongTimer);
       this.heartbeatPongTimer = null;
+    }
+  }
+
+  /** Manual check/reconnect triggered by the ↻ button. */
+  private checkConnection(): void {
+    if (this.ws.isOpen) {
+      const id = `check-${Date.now()}`;
+      this.manualCheckPingId = id;
+      this.setBadgeState('checking');
+      this.ws.sendJson({ event: 'ping', id });
+      this.manualCheckTimer = setTimeout(() => {
+        this.manualCheckPingId = null;
+        this.manualCheckTimer = null;
+        this.triggerReconnect();
+      }, HEARTBEAT_TIMEOUT_MS);
+    } else {
+      this.triggerReconnect();
     }
   }
 }

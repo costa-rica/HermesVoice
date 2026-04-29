@@ -40,16 +40,33 @@ header h1 {
   flex: 1;
 }
 
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .badge {
   padding: 3px 10px;
   border-radius: 99px;
   font-size: 0.78rem;
   font-weight: 600;
-  text-transform: capitalize;
 }
-.badge.disconnected { background: #3b3f52; color: var(--muted); }
-.badge.connecting   { background: #44371a; color: var(--yellow); }
-.badge.connected    { background: #1a3b28; color: var(--green); }
+.badge.ready    { background: #1a3b28; color: var(--green); }
+.badge.checking { background: #44371a; color: var(--yellow); }
+.badge.offline  { background: #3b3f52; color: var(--muted); }
+
+.btn-check {
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.btn-check:hover { color: var(--text); border-color: var(--muted); }
 
 .btn-small {
   padding: 4px 10px;

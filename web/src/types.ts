@@ -11,6 +11,9 @@ export type TurnState =
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
+/** Display-only badge state — decoupled from internal ConnectionState. */
+export type BadgeState = 'ready' | 'checking' | 'offline';
+
 export interface WsSessionStarted {
   event: 'session_started';
   conversation_id: string;
