@@ -22,12 +22,19 @@ _CLAUSE_ENDINGS = frozenset(",;:")
 async def _chunk_hermes_text(
     text: str,
     conversation_id: str,
-) -> AsyncIterator[str]:
-    """Buffer Hermes text deltas and yield TTS-ready chunks."""
+) -> AsyncIterator[tuple[str, str]]:
+    """Buffer Hermes text deltas and yield (tts_chunk, full_text_so_far) tuples.
+
+    Yields one tuple per TTS-ready chunk.  The second element accumulates all
+    deltas seen so far and is only complete on the final yield.  Callers that
+    need the full transcript should use the last yielded second element.
+    """
     buffer = ""
+    full_text = ""
     first_buffered_at: float | None = None
 
     async for delta in stream_hermes_text(text, conversation_id):
+        full_text += delta
         buffer += delta
         if first_buffered_at is None and buffer.strip():
             first_buffered_at = time.monotonic()
@@ -52,10 +59,10 @@ async def _chunk_hermes_text(
             buffer = ""
             first_buffered_at = None
             if chunk:
-                yield chunk
+                yield chunk, full_text
 
     if buffer.strip():
-        yield buffer.strip()
+        yield buffer.strip(), full_text
 
 
 async def run_voice_turn(
@@ -81,8 +88,10 @@ async def run_voice_turn(
         await send_json({"event": "transcript", "text": transcript})
         await send_json({"event": "turn_started"})
 
-        # Hermes -> TTS pipeline
-        async for chunk in _chunk_hermes_text(transcript, conversation_id):
+        # Hermes -> TTS pipeline; accumulate full text for assistant_text frame
+        full_assistant_text = ""
+        async for chunk, full_text in _chunk_hermes_text(transcript, conversation_id):
+            full_assistant_text = full_text
             if get_active_turn_id() != turn_id:
                 logger.info(f"Turn {turn_id} cancelled mid-pipeline, dropping chunk")
                 return
@@ -97,6 +106,9 @@ async def run_voice_turn(
 
         if get_active_turn_id() != turn_id:
             return
+
+        if full_assistant_text:
+            await send_json({"event": "assistant_text", "text": full_assistant_text, "final": True})
 
         await send_json({"event": "turn_completed"})
         await send_json({"event": "turn_end"})

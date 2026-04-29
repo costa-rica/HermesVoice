@@ -99,19 +99,19 @@ Files likely touched:
 
 Tasks:
 
-- [ ] In `api/app/services/pipeline.py`, accumulate the full Hermes text from deltas during a turn and emit one `{"event":"assistant_text","text":...,"final":true}` frame after the delta loop and before `turn_completed`.
-- [ ] (Optional refactor, if cheap) Introduce `stream_hermes_events` in `api/app/services/hermes.py` yielding tagged events, with `stream_hermes_text` retained as a thin wrapper. Skip if Phase 2 can land cleanly without it.
-- [ ] Add `WsAssistantText` to `web/src/types.ts`.
-- [ ] In `web/src/app.ts`, on `assistant_text` push an assistant `ChatMessage` and render a left-aligned bubble.
-- [ ] Add a backend test that asserts an `assistant_text` frame is emitted with the concatenated text after a mocked Hermes delta sequence.
+- [x] In `api/app/services/pipeline.py`, accumulate the full Hermes text from deltas during a turn and emit one `{"event":"assistant_text","text":...,"final":true}` frame after the delta loop and before `turn_completed`.
+- [x] (Optional refactor, if cheap) Introduce `stream_hermes_events` in `api/app/services/hermes.py` yielding tagged events, with `stream_hermes_text` retained as a thin wrapper. Skip if Phase 2 can land cleanly without it. **Skipped** — Phase 2 landed cleanly without it; `_chunk_hermes_text` now yields `(chunk, full_text)` tuples so the full text is accumulated inline.
+- [x] Add `WsAssistantText` to `web/src/types.ts`.
+- [x] In `web/src/app.ts`, on `assistant_text` push an assistant `ChatMessage` and render a left-aligned bubble.
+- [x] Add a backend test that asserts an `assistant_text` frame is emitted with the concatenated text after a mocked Hermes delta sequence.
 
 Checks:
 
-- [ ] Backend: `pytest` passes.
-- [ ] Web: `npm run build` succeeds.
+- [x] Backend: `pytest` passes (30/30).
+- [x] Web: `npm run build` succeeds.
 - [ ] Manual smoke: a PTT turn now shows both a user bubble and a Hermes bubble alongside audio playback.
-- [ ] Update checkboxes above only after checks pass.
-- [ ] Commit referencing this TODO file and Phase 2.
+- [x] Update checkboxes above only after checks pass.
+- [x] Commit referencing this TODO file and Phase 2.
 
 ## Phase 3 — Active-state indicator and fluid conversation state cleanup
 

@@ -105,6 +105,11 @@ export class App {
       this.timings.transcriptAt = performance.now();
       this.setTurnState('thinking');
       updateTimings(this.timings);
+    } else if (event === 'assistant_text') {
+      const text = (frame as { text: string }).text;
+      const msg: ChatMessage = { role: 'assistant', text, ts: performance.now() };
+      this.messages.push(msg);
+      appendMessage(msg);
     } else if (event === 'turn_started') {
       this.setTurnState('speaking');
     } else if (event === 'turn_completed' || event === 'turn_end') {

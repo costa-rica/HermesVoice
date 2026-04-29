@@ -73,7 +73,7 @@ async def test_single_turn_frame_sequence():
         )
 
     events = [f["event"] for f in sent_json]
-    assert events == ["transcript", "turn_started", "turn_completed", "turn_end"], (
+    assert events == ["transcript", "turn_started", "assistant_text", "turn_completed", "turn_end"], (
         f"Unexpected frame sequence: {events}"
     )
     assert sent_json[0]["text"] == "hello world"
@@ -114,7 +114,7 @@ async def test_two_consecutive_turns_both_complete():
             )
 
         events = [f["event"] for f in sent_json]
-        assert events == ["transcript", "turn_started", "turn_completed", "turn_end"], (
+        assert events == ["transcript", "turn_started", "assistant_text", "turn_completed", "turn_end"], (
             f"Turn {turn_id} produced unexpected frame sequence: {events}"
         )
         assert len(sent_bytes) >= 1, f"Turn {turn_id} produced no audio"

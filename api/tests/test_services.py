@@ -148,7 +148,7 @@ async def test_pipeline_chunks_by_sentence():
 
     with patch("app.services.pipeline.stream_hermes_text", fake_stream):
         chunks = []
-        async for chunk in _chunk_hermes_text("x", "cid"):
+        async for chunk, _full in _chunk_hermes_text("x", "cid"):
             chunks.append(chunk)
 
     assert len(chunks) >= 1
@@ -168,7 +168,7 @@ async def test_pipeline_flushes_remaining_buffer():
 
     with patch("app.services.pipeline.stream_hermes_text", fake_stream):
         chunks = []
-        async for chunk in _chunk_hermes_text("x", "cid"):
+        async for chunk, _full in _chunk_hermes_text("x", "cid"):
             chunks.append(chunk)
 
     assert "".join(chunks) == short_text

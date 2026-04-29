@@ -30,6 +30,12 @@ export interface WsTurnEnd {
   event: 'turn_end';
 }
 
+export interface WsAssistantText {
+  event: 'assistant_text';
+  text: string;
+  final: boolean;
+}
+
 export interface WsError {
   event: 'error';
   error: { code: string; message: string; status: number };
@@ -41,6 +47,7 @@ export type WsJsonFrame =
   | WsTurnStarted
   | WsTurnCompleted
   | WsTurnEnd
+  | WsAssistantText
   | WsError
   | { event: string; [key: string]: unknown };
 
