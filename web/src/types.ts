@@ -49,6 +49,16 @@ export interface WsError {
   error: { code: string; message: string; status: number };
 }
 
+export interface WsVoiceTurnSkipped {
+  event: 'voice_turn_skipped';
+  reason: string;
+}
+
+export interface WsPong {
+  event: 'pong';
+  id?: string;
+}
+
 export type WsJsonFrame =
   | WsSessionStarted
   | WsTranscript
@@ -58,6 +68,8 @@ export type WsJsonFrame =
   | WsActiveState
   | WsAssistantText
   | WsError
+  | WsVoiceTurnSkipped
+  | WsPong
   | { event: string; [key: string]: unknown };
 
 export interface LatencyTimings {

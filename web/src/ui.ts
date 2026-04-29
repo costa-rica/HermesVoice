@@ -34,7 +34,11 @@ export function renderApp(root: HTMLElement): void {
       <button id="btn-ptt" class="btn-ptt" disabled>
         Hold to Talk
       </button>
+      <button id="btn-cancel" class="btn-cancel" style="display:none">
+        Cancel
+      </button>
       <div id="turn-state" class="turn-state">idle</div>
+      <div id="status-toast" class="status-toast" style="display:none"></div>
     </section>
 
     <section class="chat-section">
@@ -75,6 +79,12 @@ const _STATE_LABELS: Partial<Record<TurnState, string>> = {
   error: 'Error',
 };
 
+const _CANCELLABLE_STATES: ReadonlySet<TurnState> = new Set([
+  'thinking',
+  'thinking_progress',
+  'speaking',
+]);
+
 export function updateTurnState(state: TurnState): void {
   const pill = document.getElementById('turn-state');
   if (pill) {
@@ -83,20 +93,40 @@ export function updateTurnState(state: TurnState): void {
   }
 
   const btn = document.getElementById('btn-ptt') as HTMLButtonElement | null;
-  if (!btn) return;
-  if (state === 'idle') {
-    btn.textContent = 'Hold to Talk';
-    btn.disabled = false;
-    btn.classList.remove('recording');
-  } else if (state === 'listening' || state === 'recording') {
-    btn.textContent = 'Release to Send';
-    btn.disabled = false;
-    btn.classList.add('recording');
-  } else {
-    btn.textContent = (_STATE_LABELS[state] ?? state) + '…';
-    btn.disabled = true;
-    btn.classList.remove('recording');
+  if (btn) {
+    if (state === 'idle') {
+      btn.textContent = 'Hold to Talk';
+      btn.disabled = false;
+      btn.classList.remove('recording');
+    } else if (state === 'listening' || state === 'recording') {
+      btn.textContent = 'Release to Send';
+      btn.disabled = false;
+      btn.classList.add('recording');
+    } else {
+      btn.textContent = (_STATE_LABELS[state] ?? state) + '…';
+      btn.disabled = true;
+      btn.classList.remove('recording');
+    }
   }
+
+  const cancelBtn = document.getElementById('btn-cancel') as HTMLButtonElement | null;
+  if (cancelBtn) {
+    cancelBtn.style.display = _CANCELLABLE_STATES.has(state) ? '' : 'none';
+  }
+}
+
+let _toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function showToast(msg: string, durationMs = 3000): void {
+  const toast = document.getElementById('status-toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.style.display = '';
+  if (_toastTimer !== null) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    toast.style.display = 'none';
+    _toastTimer = null;
+  }, durationMs);
 }
 
 export function updateTranscript(text: string): void {

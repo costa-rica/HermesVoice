@@ -60,7 +60,21 @@ export class VoiceSocket {
     this.ws = null;
   }
 
+  /** Force-close any existing socket and open a new one. */
+  reconnect(): void {
+    if (this.ws) {
+      this.ws.onclose = null; // suppress the onClose callback during forced reconnect
+      this.ws.close();
+      this.ws = null;
+    }
+    this.connect();
+  }
+
   get isOpen(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  get isConnecting(): boolean {
+    return this.ws?.readyState === WebSocket.CONNECTING;
   }
 }
