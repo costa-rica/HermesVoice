@@ -50,3 +50,5 @@ export interface LatencyTimings {
   firstAudioAt?: number;
   turnEndAt?: number;
 }
+
+export type ChatMessage = { role: 'user' | 'assistant'; text: string; ts: number };

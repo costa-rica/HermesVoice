@@ -73,19 +73,19 @@ Files likely touched:
 
 Tasks:
 
-- [ ] Add `ChatMessage = { role: 'user' | 'assistant', text: string, ts: number }` to `web/src/types.ts`.
-- [ ] Replace `#transcript` rendering in `web/src/ui.ts` with a `#chat-log` flex column container; add `renderMessage` and `appendMessage` helpers.
-- [ ] In `web/src/app.ts`, maintain a `messages: ChatMessage[]` array and append a user bubble on every `transcript` frame.
-- [ ] Add bubble CSS: `.bubble-user` right-aligned, `.bubble-assistant` left-aligned, distinct backgrounds.
-- [ ] Auto-scroll the chat log to the bottom on append.
+- [x] Add `ChatMessage = { role: 'user' | 'assistant', text: string, ts: number }` to `web/src/types.ts`.
+- [x] Replace `#transcript` rendering in `web/src/ui.ts` with a `#chat-log` flex column container; add `appendMessage` helper (renders and auto-scrolls).
+- [x] In `web/src/app.ts`, maintain a `messages: ChatMessage[]` array and append a user bubble on every `transcript` frame.
+- [x] Add bubble CSS: `.bubble-user` right-aligned (dark blue bg), `.bubble-assistant` left-aligned (dark green bg), distinct backgrounds.
+- [x] Auto-scroll the chat log to the bottom on append.
 
 Checks:
 
-- [ ] Backend: not applicable.
-- [ ] Web: `npm run build` succeeds.
+- [x] Backend: not applicable.
+- [x] Web: `npm run build` succeeds (tsc + vite, 0 errors).
 - [ ] Manual smoke: a PTT turn produces a right-aligned user bubble.
-- [ ] Update checkboxes above only after checks pass.
-- [ ] Commit referencing this TODO file and Phase 1.
+- [x] Update checkboxes above only after checks pass.
+- [x] Commit referencing this TODO file and Phase 1.
 
 ## Phase 2 — Backend emits assistant text; web renders Hermes bubbles
 

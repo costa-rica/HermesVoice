@@ -1,4 +1,4 @@
-import type { ConnectionState, LatencyTimings, TurnState } from './types';
+import type { ChatMessage, ConnectionState, LatencyTimings, TurnState } from './types';
 
 // Minimal DOM helpers
 
@@ -37,9 +37,9 @@ export function renderApp(root: HTMLElement): void {
       <div id="turn-state" class="turn-state">idle</div>
     </section>
 
-    <section class="transcript-section">
-      <h2>Transcript</h2>
-      <div id="transcript" class="transcript">(waiting for speech)</div>
+    <section class="chat-section">
+      <h2>Conversation</h2>
+      <div id="chat-log" class="chat-log"></div>
     </section>
 
     <section class="timings-section">
@@ -84,6 +84,16 @@ export function updateTurnState(state: TurnState): void {
 
 export function updateTranscript(text: string): void {
   setText('transcript', text || '(no transcript)');
+}
+
+export function appendMessage(msg: ChatMessage): void {
+  const log = document.getElementById('chat-log');
+  if (!log) return;
+  const div = document.createElement('div');
+  div.className = `bubble bubble-${msg.role}`;
+  div.textContent = msg.text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
 }
 
 export function showError(msg: string): void {

@@ -119,6 +119,40 @@ section h2 {
   white-space: pre-wrap;
 }
 
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px 0;
+  min-height: 48px;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.bubble-user {
+  align-self: flex-end;
+  background: #1e2a44;
+  color: var(--text);
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-assistant {
+  align-self: flex-start;
+  background: #1e2d20;
+  color: var(--text);
+  border: 1px solid #2e4a35;
+  border-bottom-left-radius: 4px;
+}
+
 .timings {
   font-size: 0.85rem;
   color: var(--muted);

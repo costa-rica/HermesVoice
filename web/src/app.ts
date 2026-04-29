@@ -1,12 +1,12 @@
 import { AudioQueue, MicCapture } from './audio';
-import type { ConnectionState, LatencyTimings, TurnState, WsJsonFrame } from './types';
+import type { ChatMessage, ConnectionState, LatencyTimings, TurnState, WsJsonFrame } from './types';
 import {
+  appendMessage,
   clearError,
   renderApp,
   showError,
   updateConnectionState,
   updateTimings,
-  updateTranscript,
   updateTurnState,
 } from './ui';
 import { VoiceSocket } from './ws';
@@ -21,6 +21,7 @@ export class App {
   private timings: LatencyTimings = {};
   private isRecording = false;
   private conversationId = '';
+  private messages: ChatMessage[] = [];
 
   constructor(root: HTMLElement) {
     renderApp(root);
@@ -98,7 +99,9 @@ export class App {
       clearError();
     } else if (event === 'transcript') {
       const text = (frame as { text: string }).text;
-      updateTranscript(text);
+      const msg: ChatMessage = { role: 'user', text, ts: performance.now() };
+      this.messages.push(msg);
+      appendMessage(msg);
       this.timings.transcriptAt = performance.now();
       this.setTurnState('thinking');
       updateTimings(this.timings);
