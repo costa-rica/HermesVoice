@@ -33,6 +33,7 @@ export class App {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatPongTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatSeq = 0;
+  private lifecycleRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(root: HTMLElement) {
     renderApp(root);
@@ -59,7 +60,6 @@ export class App {
     // Stale-connection recovery on browser lifecycle events
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
     window.addEventListener('pageshow', () => this.handlePageShow());
-    window.addEventListener('focus', () => this.handleWindowFocus());
   }
 
   async start(): Promise<void> {
@@ -246,17 +246,38 @@ export class App {
   }
 
   private handleVisibilityChange(): void {
-    if (document.visibilityState === 'visible') {
-      this.checkAndRecoverConnection();
+    if (document.visibilityState === 'hidden') {
+      // Stop heartbeat and discard pending pong timer while tab is hidden;
+      // browser throttles timers when hidden, so a stale pong timeout would
+      // fire after restore and cause a false triggerReconnect().
+      this.stopHeartbeat();
+    } else {
+      this.scheduleLifecycleRecovery();
     }
   }
 
   private handlePageShow(): void {
-    this.checkAndRecoverConnection();
+    this.scheduleLifecycleRecovery();
   }
 
-  private handleWindowFocus(): void {
-    this.checkAndRecoverConnection();
+  // Debounce recovery so rapid visibilitychange + pageshow coalesce to one attempt.
+  private scheduleLifecycleRecovery(): void {
+    if (this.lifecycleRecoveryTimer !== null) {
+      clearTimeout(this.lifecycleRecoveryTimer);
+    }
+    this.lifecycleRecoveryTimer = setTimeout(() => {
+      this.lifecycleRecoveryTimer = null;
+      // Discard any pong timer that may have survived a page-freeze race
+      if (this.heartbeatPongTimer !== null) {
+        clearTimeout(this.heartbeatPongTimer);
+        this.heartbeatPongTimer = null;
+      }
+      this.checkAndRecoverConnection();
+      // Resume heartbeat if the socket is open but heartbeat was paused on hide
+      if (this.ws.isOpen && this.heartbeatTimer === null) {
+        this.startHeartbeat();
+      }
+    }, 300);
   }
 
   private checkAndRecoverConnection(): void {
@@ -294,7 +315,10 @@ export class App {
     const id = `hb-${++this.heartbeatSeq}`;
     this.ws.sendJson({ event: 'ping', id });
     this.heartbeatPongTimer = setTimeout(() => {
-      // No pong received within timeout — treat as dead connection
+      this.heartbeatPongTimer = null;
+      // If page is hidden, the timer was throttled by the browser; skip reconnect
+      // to avoid a false triggerReconnect() on tab restore.
+      if (document.visibilityState === 'hidden') return;
       this.triggerReconnect();
     }, HEARTBEAT_TIMEOUT_MS);
   }
