@@ -63,20 +63,36 @@ export function updateConnectionState(state: ConnectionState): void {
   badge.className = `badge ${state}`;
 }
 
+const _STATE_LABELS: Partial<Record<TurnState, string>> = {
+  idle: 'Idle',
+  listening: 'Listening',
+  recording: 'Listening',
+  transcribing: 'Transcribing',
+  thinking: 'Thinking',
+  speaking: 'Speaking',
+  awaiting_approval: 'Awaiting Approval',
+  error: 'Error',
+};
+
 export function updateTurnState(state: TurnState): void {
-  setText('turn-state', state);
+  const pill = document.getElementById('turn-state');
+  if (pill) {
+    pill.textContent = _STATE_LABELS[state] ?? state;
+    pill.className = `turn-state state-${state.replace('_', '-')}`;
+  }
+
   const btn = document.getElementById('btn-ptt') as HTMLButtonElement | null;
   if (!btn) return;
   if (state === 'idle') {
     btn.textContent = 'Hold to Talk';
     btn.disabled = false;
     btn.classList.remove('recording');
-  } else if (state === 'recording') {
+  } else if (state === 'listening' || state === 'recording') {
     btn.textContent = 'Release to Send';
     btn.disabled = false;
     btn.classList.add('recording');
   } else {
-    btn.textContent = state.charAt(0).toUpperCase() + state.slice(1) + '...';
+    btn.textContent = (_STATE_LABELS[state] ?? state) + '…';
     btn.disabled = true;
     btn.classList.remove('recording');
   }

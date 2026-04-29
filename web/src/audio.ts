@@ -97,6 +97,7 @@ export class AudioQueue {
     this.playing = true;
     try {
       const ctx = this.getCtx();
+      if (ctx.state === 'suspended') await ctx.resume();
       const buf = await blob.arrayBuffer();
       const decoded = await ctx.decodeAudioData(buf);
       const src = ctx.createBufferSource();

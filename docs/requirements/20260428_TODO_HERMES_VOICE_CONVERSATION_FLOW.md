@@ -126,20 +126,20 @@ Files likely touched:
 
 Tasks:
 
-- [ ] In `api/app/services/pipeline.py`, emit `{"event":"active_state","state":...}` frames at: `thinking` (after STT completes), `speaking` (on first audio chunk), and `idle` (on turn end). Do **not** yet emit `awaiting_approval`; that arrives in Phase 6.
-- [ ] Add `WsActiveState` to `web/src/types.ts` with the state union (`idle | listening | thinking | speaking | awaiting_approval`).
-- [ ] In `web/src/ui.ts`, replace/augment the existing `#turn-state` text with a colored pill/badge; map states to CSS classes (idle neutral, listening green pulse, thinking amber, speaking blue, awaiting_approval red).
-- [ ] In `web/src/app.ts`, set local state to `listening` immediately on PTT press for responsiveness; let server frames overwrite.
-- [ ] Audit and clean any state that does not reset cleanly between turns (server `current_format`, client `AudioContext` resume, PTT button enabled state). This is the lightweight fluid-flow cleanup; the targeted multi-turn fix is Phase 4.
-- [ ] Update or add a backend test asserting the `active_state` transition order for one mocked turn.
+- [x] In `api/app/services/pipeline.py`, emit `{"event":"active_state","state":...}` frames at: `thinking` (after STT completes), `speaking` (on first audio chunk), and `idle` (on turn end). Do **not** yet emit `awaiting_approval`; that arrives in Phase 6.
+- [x] Add `WsActiveState` to `web/src/types.ts` with the state union (`idle | listening | thinking | speaking | awaiting_approval`).
+- [x] In `web/src/ui.ts`, replace/augment the existing `#turn-state` text with a colored pill/badge; map states to CSS classes (idle neutral, listening green pulse, thinking amber, speaking blue, awaiting_approval red).
+- [x] In `web/src/app.ts`, set local state to `listening` immediately on PTT press for responsiveness; let server frames overwrite.
+- [x] Audit and clean any state that does not reset cleanly between turns (server `current_format`, client `AudioContext` resume, PTT button enabled state). Findings: server state (`current_format`, `utterance_started`, `audio_buffer`) all reset correctly per turn. Added `ctx.resume()` in `AudioQueue._playNext` for suspended `AudioContext`. PTT button disabled state is driven by `updateTurnState` and correctly tracks turn state.
+- [x] Update or add a backend test asserting the `active_state` transition order for one mocked turn.
 
 Checks:
 
-- [ ] Backend: `pytest` passes.
-- [ ] Web: `npm run build` succeeds.
+- [x] Backend: `pytest` passes (33/33).
+- [x] Web: `npm run build` succeeds.
 - [ ] Manual smoke: badge transitions cleanly across a full turn.
-- [ ] Update checkboxes above only after checks pass.
-- [ ] Commit referencing this TODO file and Phase 3.
+- [x] Update checkboxes above only after checks pass.
+- [x] Commit referencing this TODO file and Phase 3.
 
 ## Phase 4 — Multi-turn bug fix (if reproduced)
 

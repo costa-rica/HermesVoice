@@ -1,9 +1,11 @@
 export type TurnState =
   | 'idle'
+  | 'listening'
   | 'recording'
   | 'transcribing'
   | 'thinking'
   | 'speaking'
+  | 'awaiting_approval'
   | 'error';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -30,6 +32,11 @@ export interface WsTurnEnd {
   event: 'turn_end';
 }
 
+export interface WsActiveState {
+  event: 'active_state';
+  state: 'idle' | 'listening' | 'thinking' | 'speaking' | 'awaiting_approval';
+}
+
 export interface WsAssistantText {
   event: 'assistant_text';
   text: string;
@@ -47,6 +54,7 @@ export type WsJsonFrame =
   | WsTurnStarted
   | WsTurnCompleted
   | WsTurnEnd
+  | WsActiveState
   | WsAssistantText
   | WsError
   | { event: string; [key: string]: unknown };

@@ -105,17 +105,22 @@ export class App {
       this.timings.transcriptAt = performance.now();
       this.setTurnState('thinking');
       updateTimings(this.timings);
+    } else if (event === 'active_state') {
+      const state = (frame as { state: string }).state as TurnState;
+      this.setTurnState(state);
     } else if (event === 'assistant_text') {
       const text = (frame as { text: string }).text;
       const msg: ChatMessage = { role: 'assistant', text, ts: performance.now() };
       this.messages.push(msg);
       appendMessage(msg);
     } else if (event === 'turn_started') {
-      this.setTurnState('speaking');
-    } else if (event === 'turn_completed' || event === 'turn_end') {
+      // active_state(speaking) from server drives the badge; turn_started kept for compat
+    } else if (event === 'turn_completed') {
       this.timings.turnEndAt = performance.now();
       updateTimings(this.timings);
-      this.setTurnState('idle');
+      // active_state(idle) follows turn_completed from server
+    } else if (event === 'turn_end') {
+      // No-op: active_state(idle) already handled state reset
     } else if (event === 'error') {
       const errFrame = frame as { error: { code: string; message: string } };
       showError(`[${errFrame.error.code}] ${errFrame.error.message}`);
@@ -138,7 +143,7 @@ export class App {
     this.timings = {};
     this.audioQueue.clear();
     clearError();
-    this.setTurnState('recording');
+    this.setTurnState('listening');
 
     this.mic.start();
   }
@@ -163,7 +168,6 @@ export class App {
     const buf = await blob.arrayBuffer();
     this.ws.sendBinary(buf);
     this.ws.sendJson({ event: 'end_of_utterance' });
-
-    this.setTurnState('transcribing');
+    // State stays 'listening' until server sends active_state(thinking)
   }
 }

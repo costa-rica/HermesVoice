@@ -90,10 +90,27 @@ header h1 {
 .btn-ptt.recording { background: #3b1a1a; border-color: var(--red); color: var(--red); transform: scale(1.05); }
 
 .turn-state {
-  font-size: 0.85rem;
-  color: var(--muted);
-  text-transform: capitalize;
+  padding: 3px 12px;
+  border-radius: 99px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background 0.2s ease, color 0.2s ease;
 }
+
+.state-idle           { background: #2a2d3d; color: var(--muted); }
+.state-listening      { background: #1a3b28; color: var(--green); animation: pulse-green 1.2s ease-in-out infinite; }
+.state-recording      { background: #1a3b28; color: var(--green); animation: pulse-green 1.2s ease-in-out infinite; }
+.state-transcribing   { background: #44371a; color: var(--yellow); }
+.state-thinking       { background: #44371a; color: var(--yellow); animation: pulse-amber 1.2s ease-in-out infinite; }
+.state-speaking       { background: #1a2744; color: var(--accent); animation: pulse-blue 1.2s ease-in-out infinite; }
+.state-awaiting-approval { background: #3b1a1a; color: var(--red); animation: pulse-red 1.2s ease-in-out infinite; }
+.state-error          { background: #3b1a1a; color: var(--red); }
+
+@keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes pulse-amber { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes pulse-blue  { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes pulse-red   { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 section {
   background: var(--surface);

@@ -86,10 +86,12 @@ async def run_voice_turn(
             return
 
         await send_json({"event": "transcript", "text": transcript})
+        await send_json({"event": "active_state", "state": "thinking"})
         await send_json({"event": "turn_started"})
 
         # Hermes -> TTS pipeline; accumulate full text for assistant_text frame
         full_assistant_text = ""
+        first_chunk = True
         async for chunk, full_text in _chunk_hermes_text(transcript, conversation_id):
             full_assistant_text = full_text
             if get_active_turn_id() != turn_id:
@@ -102,6 +104,10 @@ async def run_voice_turn(
                 logger.info(f"Turn {turn_id} cancelled after TTS, not sending audio")
                 return
 
+            if first_chunk:
+                first_chunk = False
+                await send_json({"event": "active_state", "state": "speaking"})
+
             await send_bytes(audio)
 
         if get_active_turn_id() != turn_id:
@@ -111,6 +117,7 @@ async def run_voice_turn(
             await send_json({"event": "assistant_text", "text": full_assistant_text, "final": True})
 
         await send_json({"event": "turn_completed"})
+        await send_json({"event": "active_state", "state": "idle"})
         await send_json({"event": "turn_end"})
 
     except asyncio.CancelledError:
