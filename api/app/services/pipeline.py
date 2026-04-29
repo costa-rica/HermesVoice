@@ -8,6 +8,7 @@ from typing import Any
 from loguru import logger
 
 from .hermes import stream_hermes_text
+from .latency import TurnTimer
 from .stt import transcribe
 from .tts import synthesize
 from ..config import settings
@@ -22,6 +23,7 @@ _CLAUSE_ENDINGS = frozenset(",;:")
 async def _chunk_hermes_text(
     text: str,
     conversation_id: str,
+    on_first_delta: Callable[[], None] | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """Buffer Hermes text deltas and yield (tts_chunk, full_text_so_far) tuples.
 
@@ -32,8 +34,14 @@ async def _chunk_hermes_text(
     buffer = ""
     full_text = ""
     first_buffered_at: float | None = None
+    first_delta_fired = False
 
     async for delta in stream_hermes_text(text, conversation_id):
+        if not first_delta_fired:
+            first_delta_fired = True
+            if on_first_delta is not None:
+                on_first_delta()
+
         full_text += delta
         buffer += delta
         if first_buffered_at is None and buffer.strip():
@@ -73,15 +81,34 @@ async def run_voice_turn(
     send_bytes: Callable[[bytes], Coroutine[Any, Any, None]],
     turn_id: int,
     get_active_turn_id: Callable[[], int],
+    sample_rate: int | None = None,
+    utterance_buffer_ms: float | None = None,
 ) -> None:
     """Full STT -> Hermes -> TTS pipeline for one utterance.
 
     send_json and send_bytes are callables to push frames to the WebSocket.
     turn_id / get_active_turn_id guard against cancelled turns writing stale audio.
     """
+    timer = TurnTimer(
+        conversation_id=conversation_id,
+        turn_id=turn_id,
+        audio_bytes=len(audio_bytes),
+        audio_format=audio_format,
+        sample_rate=sample_rate,
+        utterance_buffer_ms=utterance_buffer_ms,
+    )
+    timer.log("latency.turn_started")
+
     try:
         # STT
+        timer.mark("stt_start")
         transcript = await transcribe(audio_bytes, audio_format)
+        timer.log(
+            "latency.stt_completed",
+            stt_ms=timer.delta_ms("stt_start"),
+            transcript_len=len(transcript),
+        )
+
         if get_active_turn_id() != turn_id:
             return
 
@@ -92,13 +119,33 @@ async def run_voice_turn(
         # Hermes -> TTS pipeline; accumulate full text for assistant_text frame
         full_assistant_text = ""
         first_chunk = True
-        async for chunk, full_text in _chunk_hermes_text(transcript, conversation_id):
+        chunk_count = 0
+        timer.mark("hermes_start")
+
+        def _on_first_delta() -> None:
+            timer.mark("hermes_first_delta")
+            timer.log(
+                "latency.hermes_first_delta",
+                hermes_connect_ms=timer.delta_ms("hermes_start"),
+            )
+
+        async for chunk, full_text in _chunk_hermes_text(
+            transcript, conversation_id, on_first_delta=_on_first_delta
+        ):
             full_assistant_text = full_text
             if get_active_turn_id() != turn_id:
                 logger.info(f"Turn {turn_id} cancelled mid-pipeline, dropping chunk")
                 return
 
+            timer.mark("tts_start")
             audio = await synthesize(chunk)
+            timer.log(
+                "latency.tts_completed",
+                chunk_n=chunk_count,
+                tts_ms=timer.delta_ms("tts_start"),
+                chunk_chars=len(chunk),
+                tts_audio_bytes=len(audio),
+            )
 
             if get_active_turn_id() != turn_id:
                 logger.info(f"Turn {turn_id} cancelled after TTS, not sending audio")
@@ -106,12 +153,25 @@ async def run_voice_turn(
 
             if first_chunk:
                 first_chunk = False
+                timer.log(
+                    "latency.first_audio_sent",
+                    first_audio_from_turn_start_ms=timer.elapsed_ms(),
+                    first_audio_from_end_ms=timer.elapsed_ms(),
+                )
                 await send_json({"event": "active_state", "state": "speaking"})
 
             await send_bytes(audio)
+            chunk_count += 1
 
         if get_active_turn_id() != turn_id:
             return
+
+        timer.log(
+            "latency.hermes_completed",
+            hermes_total_ms=timer.delta_ms("hermes_start"),
+            assistant_text_len=len(full_assistant_text),
+            chunks=chunk_count,
+        )
 
         if full_assistant_text:
             await send_json({"event": "assistant_text", "text": full_assistant_text, "final": True})
@@ -120,10 +180,18 @@ async def run_voice_turn(
         await send_json({"event": "active_state", "state": "idle"})
         await send_json({"event": "turn_end"})
 
+        timer.log(
+            "latency.turn_completed",
+            total_ms=timer.elapsed_ms(),
+            chunks=chunk_count,
+            assistant_text_len=len(full_assistant_text),
+        )
+
     except asyncio.CancelledError:
         logger.info(f"Turn {turn_id} cancelled")
         raise
     except Exception as exc:
+        timer.log("latency.turn_failed", total_ms=timer.elapsed_ms(), error=repr(exc))
         logger.exception(f"Turn {turn_id} pipeline error: {exc}")
         if get_active_turn_id() == turn_id:
             await send_json({

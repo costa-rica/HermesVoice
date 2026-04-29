@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import time
 from pathlib import Path
 
 from loguru import logger
@@ -46,13 +47,15 @@ async def transcribe(audio_bytes: bytes, audio_format: str) -> str:
     client = _get_client()
     audio_file = (filename, io.BytesIO(audio_bytes), _FORMAT_MIME[audio_format])
 
+    t0 = time.monotonic()
     result = await client.audio.transcriptions.create(
         model=settings.STT_MODEL,
         file=audio_file,
         response_format="text",
     )
+    stt_ms = (time.monotonic() - t0) * 1000.0
 
     text = result if isinstance(result, str) else getattr(result, "text", str(result))
     transcript = text.strip()
-    logger.info(f"STT result: {transcript!r}")
+    logger.info(f"STT: completed in {stt_ms:.0f}ms, {len(transcript)} chars")
     return transcript

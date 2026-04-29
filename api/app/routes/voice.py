@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 from typing import Optional
 
@@ -49,6 +50,7 @@ async def ws_voice(websocket: WebSocket) -> None:
     current_format: Optional[str] = None
     current_sample_rate: Optional[int] = None
     utterance_started: bool = False
+    utterance_started_at: float | None = None
 
     active_task: Optional[asyncio.Task] = None
     turn_counter = 0
@@ -122,6 +124,7 @@ async def ws_voice(websocket: WebSocket) -> None:
                         )
                         audio_buffer.clear()
                         utterance_started = False
+                        utterance_started_at = None
                         continue
 
                     audio_buffer.extend(data)
@@ -158,6 +161,7 @@ async def ws_voice(websocket: WebSocket) -> None:
                         current_sample_rate = frame.get("sample_rate")
                         audio_buffer.clear()
                         utterance_started = True
+                        utterance_started_at = time.monotonic()
                         logger.info(f"start_utterance: format={fmt!r} sample_rate={current_sample_rate}")
 
                     elif event == "end_of_utterance":
@@ -169,8 +173,14 @@ async def ws_voice(websocket: WebSocket) -> None:
 
                         audio_data = bytes(audio_buffer)
                         audio_format = current_format
+                        utterance_buffer_ms = (
+                            (time.monotonic() - utterance_started_at) * 1000.0
+                            if utterance_started_at is not None
+                            else None
+                        )
                         audio_buffer.clear()
                         utterance_started = False
+                        utterance_started_at = None
 
                         await cancel_active_turn()
                         turn_counter += 1
@@ -185,6 +195,8 @@ async def ws_voice(websocket: WebSocket) -> None:
                                 send_bytes=send_bytes,
                                 turn_id=my_turn_id,
                                 get_active_turn_id=get_active_turn_id,
+                                sample_rate=current_sample_rate,
+                                utterance_buffer_ms=utterance_buffer_ms,
                             )
                         )
 
@@ -192,6 +204,7 @@ async def ws_voice(websocket: WebSocket) -> None:
                         await cancel_active_turn()
                         audio_buffer.clear()
                         utterance_started = False
+                        utterance_started_at = None
                         conversation_id = str(uuid.uuid4())
                         await send_json({"event": "session_started", "conversation_id": conversation_id})
                         logger.info(f"New session: {conversation_id}")
