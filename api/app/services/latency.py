@@ -8,7 +8,14 @@ from loguru import logger
 
 
 class TurnTimer:
-    """Small per-turn latency logger with injectable monotonic clock for tests."""
+    """Small per-turn latency logger with injectable monotonic clock for tests.
+
+    ``utterance_buffer_ms`` is currently the server-observed gap between the
+    websocket ``start_utterance`` and ``end_of_utterance`` control frames. It
+    is useful as a control-flow timing hint but is not a true user speech
+    duration; browsers may bulk-send audio shortly before ``end_of_utterance``.
+    The value is None when the caller does not have a control-frame timestamp.
+    """
 
     def __init__(
         self,

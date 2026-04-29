@@ -55,23 +55,23 @@ architecture.
 
 The implementer can check these off when all phases are merged:
 
-- [ ] `HERMES_INTER_TOKEN_TIMEOUT` default raised, plus a separate
+- [x] `HERMES_INTER_TOKEN_TIMEOUT` default raised, plus a separate
   first-event timeout setting; both overridable via env without code change.
-- [ ] `stream_hermes_text()` distinguishes "no first event from Hermes",
+- [x] `stream_hermes_text()` distinguishes "no first event from Hermes",
   "first event but no first speakable delta", and "gap between deltas",
   with separate `latency.hermes_*` log events and clear failure messages.
-- [ ] Backend emits at least one `active_state=thinking_progress` (or
+- [x] Backend emits at least one `active_state=thinking_progress` (or
   equivalent) frame when Hermes is silent past a configurable threshold
   while a turn is running, and the web client renders it as a non-error
   "still thinking…" indicator.
-- [ ] Utterances below a configurable byte / duration threshold are rejected
+- [x] Utterances below a configurable byte / duration threshold are rejected
   before STT with a clear, non-fatal frame to the client and a structured
   log line; no OpenAI call is made.
-- [ ] `latency.first_audio_sent` reports a single, correctly-named field
+- [x] `latency.first_audio_sent` reports a single, correctly-named field
   for time-from-end-of-utterance, and `utterance_buffer_ms` semantics are
   documented in the latency module docstring.
-- [ ] All new behavior covered by failing-first tests under `api/tests/`.
-- [ ] Existing test suite still green: `cd api && python -m pytest`.
+- [x] All new behavior covered by failing-first tests under `api/tests/`.
+- [x] Existing test suite still green: `cd api && python -m pytest`.
 - [ ] During a live smoke test, three consecutive normal-length utterances
   complete without HermesVoice-side errors, and a deliberate ~60 s Hermes
   stall produces a "still thinking" UI state rather than a turn error.
@@ -136,7 +136,7 @@ loguru log strings (which are exercised indirectly).
 
 ### Phase 1 — Configurable timeouts and naming
 
-- [ ] Add settings to `api/app/config.py`:
+- [x] Add settings to `api/app/config.py`:
   - `HERMES_FIRST_EVENT_TIMEOUT` (default 60s) — time from request send to
     the first SSE line of any kind
   - `HERMES_FIRST_DELTA_TIMEOUT` (default 120s) — time from first SSE line
@@ -144,13 +144,13 @@ loguru log strings (which are exercised indirectly).
   - Raise `HERMES_INTER_TOKEN_TIMEOUT` default to 120 (gap between deltas
     once streaming has started)
   - Keep `HERMES_REQUEST_TIMEOUT` at 600
-- [ ] Tests in `api/tests/test_config.py` (or new) confirming defaults and
+- [x] Tests in `api/tests/test_config.py` (or new) confirming defaults and
   env override.
-- [ ] No behavior change in `hermes.py` yet beyond reading the new settings.
+- [x] No behavior change in `hermes.py` yet beyond reading the new settings.
 
 ### Phase 2 — Hermes stream categorized timeouts and instrumentation
 
-- [ ] In `api/tests/test_hermes_stream.py`, write tests using a fake async
+- [x] In `api/tests/test_hermes_stream.py`, write tests using a fake async
   line iterator that:
   - emits no lines → expect a `RuntimeError` whose message identifies
     "first event timeout" and a `latency.hermes_first_event_timeout` log
@@ -159,15 +159,15 @@ loguru log strings (which are exercised indirectly).
   - emits deltas with a long gap → expect inter-token timeout error
   - emits a normal stream → no error, and `latency.hermes_first_event_ms`
     log is emitted exactly once
-- [ ] Implement: split the single timeout check in `stream_hermes_text()`
+- [x] Implement: split the single timeout check in `stream_hermes_text()`
   into the three categories; emit a structured loguru line at first raw
   event and propagate distinct `RuntimeError` messages.
-- [ ] Confirm existing pipeline tests still pass (the existing
+- [x] Confirm existing pipeline tests still pass (the existing
   `latency.hermes_first_delta` event must remain).
 
 ### Phase 3 — Pipeline "still thinking" progress frame
 
-- [ ] In `api/tests/test_pipeline_progress.py`:
+- [x] In `api/tests/test_pipeline_progress.py`:
   - Patch `stream_hermes_text` with an async generator that sleeps past the
     progress threshold before yielding its first delta (use `asyncio.sleep`
     with a small monkeypatched threshold, e.g. 0.05s for the test).
@@ -175,18 +175,18 @@ loguru log strings (which are exercised indirectly).
     state is `thinking_progress` (or agreed name) at least once before any
     audio is sent.
   - Assert that on a fast Hermes path the progress frame is not sent.
-- [ ] Implement: in `run_voice_turn` (or a small helper) start a background
+- [x] Implement: in `run_voice_turn` (or a small helper) start a background
   task that emits the progress frame on a configurable interval until the
   first delta arrives or the turn ends.
   - Add `HERMES_PROGRESS_INTERVAL` setting (default 8s).
   - Cancel the task on first delta, on cancellation, and in the failure
     path. No leaked tasks.
-- [ ] Update existing `test_pipeline_phase3` and multi-turn tests if they
+- [x] Update existing `test_pipeline_phase3` and multi-turn tests if they
   asserted an exact `active_state` sequence.
 
 ### Phase 4 — Reject degenerate utterances pre-STT
 
-- [ ] In `api/tests/test_pipeline_short_audio.py`:
+- [x] In `api/tests/test_pipeline_short_audio.py`:
   - Calling `run_voice_turn` with `audio_bytes=b""` or below a small
     threshold must NOT call `transcribe`, must send a `voice_turn_skipped`
     (or equivalent) JSON frame with a non-error reason like
@@ -194,31 +194,31 @@ loguru log strings (which are exercised indirectly).
     `latency.turn_skipped reason=audio_too_short`, and must reset
     `active_state` to `idle`.
   - A normal-size utterance still flows through unchanged.
-- [ ] Implement: add `MIN_UTTERANCE_BYTES` setting (e.g. 1500) in
+- [x] Implement: add `MIN_UTTERANCE_BYTES` setting (e.g. 1500) in
   `config.py`; in `run_voice_turn`, perform the check immediately after
   `latency.turn_started` and short-circuit before STT.
-- [ ] Confirm websocket/state tests still pass.
+- [x] Confirm websocket/state tests still pass.
 
 ### Phase 5 — Latency log semantics fixes
 
-- [ ] Update `latency.first_audio_sent` to log:
+- [x] Update `latency.first_audio_sent` to log:
   - `first_audio_from_turn_start_ms` only (drop the duplicate)
   - or, if `first_audio_from_end_ms` is meant to measure time from
     end-of-utterance, compute it from a recorded `utterance_end` mark and
     keep both, but make them genuinely distinct.
-- [ ] Document `utterance_buffer_ms` in the `TurnTimer` docstring: what it
+- [x] Document `utterance_buffer_ms` in the `TurnTimer` docstring: what it
   currently measures (server-observed gap between start/end utterance control
   frames, not true user speech duration) and why it can be None.
-- [ ] Update `api/tests/test_latency_logging.py` only as needed; add a new
+- [x] Update `api/tests/test_latency_logging.py` only as needed; add a new
   test that asserts the two latency fields, when both present, are
   different values for a synthetic turn.
 
 ### Phase 6 — Frontend "still thinking" rendering (minimal)
 
-- [ ] In the web component that already handles `active_state`, render the
+- [x] In the web component that already handles `active_state`, render the
   new sub-state as a visible but non-error indicator (e.g. dim spinner +
   "Hermes is taking longer than usual…"). Reuse existing styles.
-- [ ] If a web test exists for active-state rendering, add a case for the
+- [x] If a web test exists for active-state rendering, add a case for the
   new state. Otherwise document a manual UI check in this TODO.
 
 ### Phase 7 — Live smoke test and tuning notes
@@ -237,6 +237,13 @@ loguru log strings (which are exercised indirectly).
   secrets, not env contents) to a follow-up notes doc if any new tuning is
   needed. This TODO can be marked complete even if further tuning is
   identified, as long as the acceptance criteria above hold.
+
+
+
+Implementation verification run by agent:
+- 2026-04-29: `/home/limited_user/environments/hermes_voice/bin/pytest -q` → 58 passed.
+- 2026-04-29: `cd web && npm run build` → passed.
+- Manual live browser/voice smoke remains for Nick after service restart.
 
 ## Commit Guidance
 

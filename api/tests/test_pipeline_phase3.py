@@ -54,7 +54,7 @@ async def test_active_state_transition_order():
         patch("app.services.pipeline.synthesize", _fake_tts),
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-p3",
             send_json=send_json,
@@ -92,7 +92,7 @@ async def test_active_state_thinking_after_transcript():
         patch("app.services.pipeline.synthesize", _fake_tts),
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-p3b",
             send_json=send_json,
@@ -122,7 +122,7 @@ async def test_active_state_idle_after_turn_completed():
         patch("app.services.pipeline.synthesize", _fake_tts),
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-p3c",
             send_json=send_json,

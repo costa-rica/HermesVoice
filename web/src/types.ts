@@ -4,6 +4,7 @@ export type TurnState =
   | 'recording'
   | 'transcribing'
   | 'thinking'
+  | 'thinking_progress'
   | 'speaking'
   | 'awaiting_approval'
   | 'error';
@@ -34,7 +35,7 @@ export interface WsTurnEnd {
 
 export interface WsActiveState {
   event: 'active_state';
-  state: 'idle' | 'listening' | 'thinking' | 'speaking' | 'awaiting_approval';
+  state: 'idle' | 'listening' | 'thinking' | 'thinking_progress' | 'speaking' | 'awaiting_approval';
 }
 
 export interface WsAssistantText {

@@ -207,7 +207,7 @@ async def test_pipeline_emits_latency_stt_completed():
         capture_logs() as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-stt",
             send_json=send_json,
@@ -239,7 +239,7 @@ async def test_pipeline_emits_latency_hermes_first_delta_once():
         capture_logs() as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-hermes",
             send_json=send_json,
@@ -269,7 +269,7 @@ async def test_pipeline_emits_latency_turn_completed_with_stats():
         capture_logs() as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-done",
             send_json=send_json,
@@ -304,7 +304,7 @@ async def test_pipeline_emits_latency_turn_failed_on_exception():
         capture_logs("DEBUG") as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-fail",
             send_json=send_json,
@@ -331,7 +331,7 @@ async def test_pipeline_latency_events_have_correlation_fields():
         capture_logs() as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-corr",
             send_json=send_json,
@@ -362,7 +362,7 @@ async def test_pipeline_latency_events_ordered():
         capture_logs() as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-order",
             send_json=send_json,
@@ -402,7 +402,7 @@ async def test_pipeline_sample_rate_in_latency_logs():
         capture_logs() as msgs,
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-sr",
             send_json=send_json,

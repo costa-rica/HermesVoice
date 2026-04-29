@@ -63,7 +63,7 @@ async def test_single_turn_frame_sequence():
         patch("app.services.pipeline.synthesize", _fake_tts),
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-1",
             send_json=send_json,
@@ -105,7 +105,7 @@ async def test_two_consecutive_turns_both_complete():
             patch("app.services.pipeline.synthesize", _fake_tts),
         ):
             await run_voice_turn(
-                audio_bytes=b"\x00",
+                audio_bytes=b"\x00" * 100,
                 audio_format="wav",
                 conversation_id="cid-multi",
                 send_json=send_json,
@@ -135,7 +135,7 @@ async def test_three_consecutive_turns_all_complete():
             patch("app.services.pipeline.synthesize", _fake_tts),
         ):
             await run_voice_turn(
-                audio_bytes=b"\x00",
+                audio_bytes=b"\x00" * 100,
                 audio_format="wav",
                 conversation_id="cid-three",
                 send_json=send_json,
@@ -200,7 +200,7 @@ async def test_stale_turn_id_suppresses_output():
     ):
         await asyncio.gather(
             run_voice_turn(
-                audio_bytes=b"\x00",
+                audio_bytes=b"\x00" * 100,
                 audio_format="wav",
                 conversation_id="cid-stale",
                 send_json=send_json,

@@ -43,7 +43,11 @@ class Settings(BaseSettings):
 
     # Timeouts and limits
     HERMES_REQUEST_TIMEOUT: int = 600
-    HERMES_INTER_TOKEN_TIMEOUT: int = 30
+    HERMES_FIRST_EVENT_TIMEOUT: float = 60
+    HERMES_FIRST_DELTA_TIMEOUT: float = 120
+    HERMES_INTER_TOKEN_TIMEOUT: float = 120
+    HERMES_PROGRESS_INTERVAL: float = 8
+    MIN_UTTERANCE_BYTES: int = 50
     TTS_REQUEST_TIMEOUT: int = 45
     IDLE_TIMEOUT: int = 120
     MAX_UTTERANCE_BYTES: int = 10 * 1024 * 1024

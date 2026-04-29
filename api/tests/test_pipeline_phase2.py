@@ -51,7 +51,7 @@ async def test_assistant_text_frame_emitted():
         patch("app.services.pipeline.synthesize", _fake_tts),
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-p2",
             send_json=send_json,
@@ -89,7 +89,7 @@ async def test_assistant_text_single_delta():
         patch("app.services.pipeline.synthesize", _fake_tts),
     ):
         await run_voice_turn(
-            audio_bytes=b"\x00",
+            audio_bytes=b"\x00" * 100,
             audio_format="wav",
             conversation_id="cid-p2-single",
             send_json=send_json,

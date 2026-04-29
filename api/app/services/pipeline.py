@@ -73,6 +73,47 @@ async def _chunk_hermes_text(
         yield buffer.strip(), full_text
 
 
+async def _send_thinking_progress(
+    send_json: Callable[[dict], Coroutine[Any, Any, None]],
+    turn_id: int,
+    get_active_turn_id: Callable[[], int],
+    interval: float,
+) -> None:
+    """Emit periodic non-error progress frames while Hermes is still thinking."""
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            if get_active_turn_id() != turn_id:
+                return
+            await send_json({"event": "active_state", "state": "thinking_progress"})
+    except asyncio.CancelledError:
+        raise
+
+
+async def _cancel_progress_task(task: asyncio.Task[None] | None) -> None:
+    if task is None or task.done():
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+async def _skip_too_short_audio(
+    timer: TurnTimer,
+    send_json: Callable[[dict], Coroutine[Any, Any, None]],
+) -> None:
+    timer.log(
+        "latency.turn_skipped",
+        reason="audio_too_short",
+        min_utterance_bytes=settings.MIN_UTTERANCE_BYTES,
+    )
+    await send_json({"event": "voice_turn_skipped", "reason": "audio_too_short"})
+    await send_json({"event": "active_state", "state": "idle"})
+    await send_json({"event": "turn_end"})
+
+
 async def run_voice_turn(
     audio_bytes: bytes,
     audio_format: str,
@@ -98,8 +139,13 @@ async def run_voice_turn(
         utterance_buffer_ms=utterance_buffer_ms,
     )
     timer.log("latency.turn_started")
+    progress_task: asyncio.Task[None] | None = None
 
     try:
+        if len(audio_bytes) < settings.MIN_UTTERANCE_BYTES:
+            await _skip_too_short_audio(timer, send_json)
+            return
+
         # STT
         timer.mark("stt_start")
         transcript = await transcribe(audio_bytes, audio_format)
@@ -121,6 +167,14 @@ async def run_voice_turn(
         first_chunk = True
         chunk_count = 0
         timer.mark("hermes_start")
+        progress_task = asyncio.create_task(
+            _send_thinking_progress(
+                send_json,
+                turn_id,
+                get_active_turn_id,
+                settings.HERMES_PROGRESS_INTERVAL,
+            )
+        )
 
         def _on_first_delta() -> None:
             timer.mark("hermes_first_delta")
@@ -128,6 +182,8 @@ async def run_voice_turn(
                 "latency.hermes_first_delta",
                 hermes_connect_ms=timer.delta_ms("hermes_start"),
             )
+            if progress_task is not None:
+                progress_task.cancel()
 
         async for chunk, full_text in _chunk_hermes_text(
             transcript, conversation_id, on_first_delta=_on_first_delta
@@ -156,7 +212,6 @@ async def run_voice_turn(
                 timer.log(
                     "latency.first_audio_sent",
                     first_audio_from_turn_start_ms=timer.elapsed_ms(),
-                    first_audio_from_end_ms=timer.elapsed_ms(),
                 )
                 await send_json({"event": "active_state", "state": "speaking"})
 
@@ -198,3 +253,5 @@ async def run_voice_turn(
                 "event": "error",
                 "error": {"code": "INTERNAL_ERROR", "message": "Voice turn failed", "status": 500},
             })
+    finally:
+        await _cancel_progress_task(progress_task)

@@ -69,6 +69,7 @@ const _STATE_LABELS: Partial<Record<TurnState, string>> = {
   recording: 'Listening',
   transcribing: 'Transcribing',
   thinking: 'Thinking',
+  thinking_progress: 'Hermes is taking longer than usual',
   speaking: 'Speaking',
   awaiting_approval: 'Awaiting Approval',
   error: 'Error',

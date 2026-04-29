@@ -21,6 +21,25 @@ ACCEPTED_ORIGINS = {
 SPEAKABLE_EVENT = "response.output_text.delta"
 
 
+async def _next_line_with_timeout(
+    iterator: AsyncIterator[str],
+    timeout: float,
+    timeout_message: str,
+    timeout_event: str,
+    *,
+    conversation_id: str,
+) -> str:
+    try:
+        return await asyncio.wait_for(iterator.__anext__(), timeout=timeout)
+    except StopAsyncIteration:
+        raise
+    except TimeoutError as exc:
+        logger.info(
+            f"{timeout_event} | cid={conversation_id} timeout_s={timeout:.1f}"
+        )
+        raise RuntimeError(timeout_message) from exc
+
+
 async def stream_hermes_text(
     text: str,
     conversation_id: str,
@@ -28,7 +47,7 @@ async def stream_hermes_text(
     """Stream speakable text deltas from Hermes, yielding one delta string at a time.
 
     Raises asyncio.CancelledError if the task is cancelled.
-    Raises RuntimeError on Hermes connectivity or timeout errors.
+    Raises RuntimeError on Hermes connectivity or categorized timeout errors.
     """
     url = settings.HERMES_BASE_URL.rstrip("/") + "/responses"
     headers = {
@@ -43,6 +62,8 @@ async def stream_hermes_text(
         "stream": True,
     }
 
+    first_event_timeout = settings.HERMES_FIRST_EVENT_TIMEOUT
+    first_delta_timeout = settings.HERMES_FIRST_DELTA_TIMEOUT
     inter_token_timeout = settings.HERMES_INTER_TOKEN_TIMEOUT
     request_timeout = settings.HERMES_REQUEST_TIMEOUT
 
@@ -55,16 +76,56 @@ async def stream_hermes_text(
                 )
 
             event_name: str | None = None
-            last_event_time = time.monotonic()
+            first_event_at: float | None = None
+            first_delta_at: float | None = None
+            last_delta_at: float | None = None
+            max_inter_delta_gap_ms = 0.0
+            line_iter = resp.aiter_lines().__aiter__()
 
-            async for line in resp.aiter_lines():
-                # Inter-token idle timeout check
-                now = time.monotonic()
-                if now - last_event_time > inter_token_timeout:
-                    raise RuntimeError(
-                        f"Hermes inter-token timeout ({inter_token_timeout}s) exceeded"
+            while True:
+                if first_event_at is None:
+                    timeout = first_event_timeout
+                    timeout_message = (
+                        f"Hermes first event timeout ({first_event_timeout:g}s) exceeded"
                     )
-                last_event_time = now
+                    timeout_event = "latency.hermes_first_event_timeout"
+                elif first_delta_at is None:
+                    timeout = first_delta_timeout
+                    timeout_message = (
+                        f"Hermes first delta timeout ({first_delta_timeout:g}s) exceeded"
+                    )
+                    timeout_event = "latency.hermes_first_delta_timeout"
+                else:
+                    timeout = inter_token_timeout
+                    timeout_message = (
+                        f"Hermes inter-token timeout ({inter_token_timeout:g}s) exceeded"
+                    )
+                    timeout_event = "latency.hermes_inter_token_timeout"
+
+                try:
+                    line = await _next_line_with_timeout(
+                        line_iter,
+                        timeout,
+                        timeout_message,
+                        timeout_event,
+                        conversation_id=conversation_id,
+                    )
+                except StopAsyncIteration:
+                    if max_inter_delta_gap_ms:
+                        logger.info(
+                            "latency.hermes_stream_completed | "
+                            f"cid={conversation_id} "
+                            f"hermes_max_inter_delta_gap_ms={max_inter_delta_gap_ms:.1f}"
+                        )
+                    return
+
+                now = time.monotonic()
+                if first_event_at is None and line:
+                    first_event_at = now
+                    logger.info(
+                        f"latency.hermes_first_event | cid={conversation_id} "
+                        "hermes_first_event_ms=0.0"
+                    )
 
                 if not line:
                     event_name = None
@@ -75,6 +136,12 @@ async def stream_hermes_text(
                 if line.startswith("data:"):
                     data = line[5:].strip()
                     if data == "[DONE]":
+                        if max_inter_delta_gap_ms:
+                            logger.info(
+                                "latency.hermes_stream_completed | "
+                                f"cid={conversation_id} "
+                                f"hermes_max_inter_delta_gap_ms={max_inter_delta_gap_ms:.1f}"
+                            )
                         return
                     try:
                         parsed = json.loads(data)
@@ -90,5 +157,23 @@ async def stream_hermes_text(
                     if etype == SPEAKABLE_EVENT:
                         delta = parsed.get("delta") if isinstance(parsed, dict) else None
                         if delta:
+                            if first_delta_at is None:
+                                first_delta_at = now
+                                first_delta_ms = (
+                                    (first_delta_at - first_event_at) * 1000.0
+                                    if first_event_at is not None
+                                    else 0.0
+                                )
+                                logger.info(
+                                    "latency.hermes_first_speakable_delta | "
+                                    f"cid={conversation_id} "
+                                    f"hermes_first_speakable_delta_ms={first_delta_ms:.1f}"
+                                )
+                            if last_delta_at is not None:
+                                max_inter_delta_gap_ms = max(
+                                    max_inter_delta_gap_ms,
+                                    (now - last_delta_at) * 1000.0,
+                                )
+                            last_delta_at = now
                             logger.debug(f"Hermes delta: {delta[:60]!r}")
                             yield delta
