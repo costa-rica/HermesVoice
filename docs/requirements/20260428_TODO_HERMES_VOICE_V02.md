@@ -15,15 +15,16 @@ on `avatar08`.
 
 ## Build Mandate
 
-- [x] Do not build, scaffold, install dependencies for, or test the Flutter mobile app on this Ubuntu server.
+- [x] Do not build, scaffold, install dependencies for, or test the mobile app on this Ubuntu server.
 - [ ] Build the backend, web validation app, and public API/web deployment first on `avatar08` and `maestro04`.
-- [ ] Start Flutter development only after the public web app and API are working end-to-end.
-- [ ] Move Flutter/iOS development to the MacBook with Xcode when Phase 8 begins.
+- [ ] Start native Swift iOS development only after the public web app and API are working end-to-end.
+- [ ] Move Swift/iOS development to the MacBook with Xcode when Phase 8 begins.
+- [ ] Agent warning: if any old legacy Flutter/Dart references appear in historical docs, treat them as stale relics. Do not plan or build with Flutter; proceed with native Swift/iOS as the chosen mobile technology.
 
 ## Phase 0 - Repository and Environment Baseline
 
 - [x] Initialize git repository if this workspace is intended to be source-controlled here.
-- [x] Add repo-level `.gitignore` covering Python caches, web build output, Flutter build output, local `.env` files, logs, and temporary audio artifacts.
+- [x] Add repo-level `.gitignore` covering Python caches, web build output, native Apple generated output, local `.env` files, logs, and temporary audio artifacts.
 - [x] Keep the current root `venv/` treated as temporary development state, not production structure.
 - [x] Create the production Python venv at `/home/limited_user/environments/hermes_voice`.
 - [x] Verify the active Python command with `which python` and `python --version` before Python work.
@@ -203,16 +204,16 @@ on `avatar08`.
 - [ ] Decide whether a daily/weekly OpenAI usage quota or billing alert is warranted.
 - [ ] Commit phase completion with a message referencing this TODO and Phase 7.
 
-## Phase 8 - Flutter Mobile App on Mac
+## Phase 8 - Native Swift iOS App on Mac
 
 - [ ] Confirm Phases 1-7 are complete before starting mobile work.
-- [ ] Move active development to the MacBook; do not run Flutter or Xcode tasks on `avatar08`.
-- [ ] Create `mobile/` Flutter project on a Mac with Xcode installed.
-- [ ] Start with package candidates:
-  - [ ] Audio capture: `record`.
-  - [ ] Playback: `just_audio`.
-  - [ ] WebSocket: `web_socket_channel`.
-  - [ ] Audio session: `audio_session`.
+- [ ] Move active development to the MacBook; do not run Xcode build/test tasks on `avatar08`.
+- [ ] Create `mobile/` native Swift iOS project on a Mac with Xcode installed.
+- [ ] Start with native iOS framework candidates:
+  - [ ] Audio capture: `AVAudioEngine` or `AVAudioRecorder`.
+  - [ ] Playback: `AVAudioPlayer` or `AVAudioEngine`.
+  - [ ] WebSocket: `URLSessionWebSocketTask`.
+  - [ ] Audio session: `AVAudioSession`.
 - [ ] Implement environment/config handling for backend WebSocket URL, API key, and V1 audio format.
 - [ ] Implement WebSocket service using the contract proven by the web client.
 - [ ] Implement audio capture service for push-to-talk WAV uplink.
@@ -221,7 +222,7 @@ on `avatar08`.
 - [ ] Build primary conversation screen with push-to-talk control, connection state, talking state, and transcript display.
 - [ ] Ensure unknown JSON event frames are ignored safely.
 - [ ] Configure iOS audio session for playback with screen locked.
-- [ ] Run Flutter analyzer and tests on the Mac.
+- [ ] Run Xcode build/tests on the Mac.
 - [ ] Test on a physical iPhone against the deployed Ubuntu backend.
 - [ ] Commit phase completion with a message referencing this TODO and Phase 8.
 
@@ -235,5 +236,5 @@ on `avatar08`.
 - [ ] Review whether barge-in should stay ignored or move to cancel current turn.
 - [ ] Re-evaluate `TTS_MODEL` against newer lower-latency TTS models using first-audio measurements.
 - [ ] Add final V1 docs covering architecture, configuration, local development, maestro04 deployment, avatar08 service operations, and known tradeoffs.
-- [ ] Run full backend tests, web tests/build, Flutter analyzer/tests, Hermes smoke, Whisper smoke, public web validation, and physical iPhone test.
+- [ ] Run full backend tests, web tests/build, Xcode build/tests, Hermes smoke, Whisper smoke, public web validation, and physical iPhone test.
 - [ ] Commit phase completion with a message referencing this TODO and Phase 9.

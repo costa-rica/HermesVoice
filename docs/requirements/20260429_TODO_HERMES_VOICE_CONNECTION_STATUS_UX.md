@@ -52,7 +52,7 @@ Badge is driven by a separate `badgeState: BadgeState` field.
 
 **Out of scope**
 - Backend changes
-- Mobile / Flutter
+- Native mobile / Swift iOS
 - Auth / session management
 
 ## Acceptance Criteria

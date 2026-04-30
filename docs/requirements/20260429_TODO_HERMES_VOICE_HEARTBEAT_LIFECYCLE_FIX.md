@@ -40,7 +40,7 @@ triggering a false `triggerReconnect()` on restore.
 
 **Out of scope**
 - Backend changes
-- Mobile / Flutter
+- Native mobile / Swift iOS
 - Auth / session management
 
 ## Acceptance Criteria

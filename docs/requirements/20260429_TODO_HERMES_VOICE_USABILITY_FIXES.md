@@ -43,7 +43,7 @@ Live test showed:
 - Frontend: periodic ping with reconnect-on-timeout.
 
 **Out of scope**
-- Mobile / Flutter code.
+- Native mobile / Swift iOS code.
 - Reworking auth or session management.
 - Changes to STT / TTS / Hermes pipeline logic.
 

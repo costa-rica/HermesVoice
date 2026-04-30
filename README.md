@@ -33,7 +33,7 @@ silently denied.
 ```
 api/      FastAPI backend (Python)
 web/      Browser validation client (TypeScript + Vite)
-mobile/   Flutter iOS app (built later on Mac)
+mobile/   Native Swift iOS app (built later on Mac)
 scripts/  Smoke-test utilities
 docs/     Plans, requirements, standards
 ```

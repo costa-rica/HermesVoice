@@ -63,7 +63,7 @@ conversation lifecycle.
 ### V1B - Mobile path after web validation
 
 ```
-[Flutter App on iPhone]
+[Native Swift iOS App on iPhone]
     |
     |  1. Capture push-to-talk WAV audio
     |  2. Send start_utterance metadata
@@ -73,7 +73,7 @@ conversation lifecycle.
     |
     |  4. Same STT -> Hermes -> TTS pipeline
     v
-[Flutter App]
+[Native Swift iOS App]
 ```
 
 **Latency principle:** STT starts after end-of-utterance. Hermes and TTS are
@@ -114,7 +114,7 @@ HermesVoice/
 │   ├── package.json
 │   └── README.md
 │
-├── mobile/                           # Flutter iOS app, built later on Mac
+├── mobile/                           # Native Swift iOS app, built later on Mac
 │   └── README.md                     # Placeholder until mobile phase
 │
 ├── scripts/
@@ -450,8 +450,10 @@ Before exposing the web app publicly:
 
 ## Mobile App (`mobile/`) - Later Phase
 
-The Flutter app is intentionally deferred until the backend and web harness are
-proven on Ubuntu.
+The native Swift iOS app is intentionally deferred until the backend and web harness are
+proven on Ubuntu. If any old legacy Flutter/Dart references appear in historical
+notes, ignore them as stale relics; native Swift/iOS is the selected mobile
+technology for current planning and implementation.
 
 ### Build environment
 
@@ -466,7 +468,7 @@ proven on Ubuntu.
 - 16 kHz, 16-bit, mono WAV uplink.
 - Opus playback from backend TTS.
 - Transcript and turn status display.
-- Background audio handling through `audio_session`.
+- Background audio handling through native iOS audio session APIs.
 
 ---
 
@@ -559,7 +561,7 @@ is a specific operational reason.
 - Test the HTTPS web app from a browser, including mic capture, tool-using Hermes
   turns, longer conversations, reconnect behavior, and login throttling.
 
-### Phase 8 - Flutter iOS app on Mac
+### Phase 8 - Native Swift iOS app on Mac
 
 - Build the mobile app against the proven backend contract.
 

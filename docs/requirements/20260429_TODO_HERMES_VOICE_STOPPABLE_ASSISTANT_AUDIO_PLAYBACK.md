@@ -41,7 +41,7 @@ new assistant turn is clearly allowed.
 - Changes to WebSocket protocol shape unless existing frames are insufficient.
 - TTS generation, server buffering, auth, reconnect/heartbeat behavior, or UI
   layout changes beyond using the existing cancel button behavior.
-- Mobile / Flutter clients.
+- Native mobile / Swift iOS clients.
 
 ## Acceptance Criteria
 

@@ -37,13 +37,6 @@ logs/
 *.m4a
 *.flac
 
-# Flutter / Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-build/
-
 # Web / JavaScript
 node_modules/
 web/dist/
@@ -52,23 +45,12 @@ web/.vite/
 web/.next/
 web/coverage/
 
-# Android generated output
-android/.gradle/
-android/app/build/
-android/local.properties
-
-# iOS / macOS generated output
-ios/Pods/
-ios/.symlinks/
-ios/Flutter/Flutter.framework
-ios/Flutter/Flutter.podspec
-ios/Flutter/Generated.xcconfig
-ios/Flutter/ephemeral/
-ios/Runner/GeneratedPluginRegistrant.*
-ios/build/
-macos/Pods/
-macos/.symlinks/
-macos/Flutter/ephemeral/
+# Native Apple generated output
+mobile/**/DerivedData/
+mobile/**/Pods/
+mobile/**/.build/
+mobile/**/*.xcworkspace/xcuserdata/
+mobile/**/*.xcodeproj/xcuserdata/
 
 # Xcode user state
 *.xcuserstate
