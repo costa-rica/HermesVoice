@@ -282,24 +282,24 @@ Files likely touched: `mobile/ios/HermesVoice/...`.
 
 Tasks:
 
-- [ ] Create the Xcode project at `mobile/ios/HermesVoice/`. iOS 17 minimum.
+- [x] Create the Xcode project at `mobile/ios/HermesVoice/`. iOS 17 minimum.
       SwiftUI lifecycle. Async/await. No third-party SPM dependencies (the
       Opus carve-out is only added later if M0a authorized it).
-- [ ] App Transport Security: default-strict; only the production host is
+- [x] App Transport Security: default-strict; only the production host is
       reachable in Release. Debug builds may permit a developer URL via
       Settings.
-- [ ] Folder layout: `App/`, `Auth/`, `Voice/` (protocol + socket + audio),
+- [x] Folder layout: `App/`, `Auth/`, `Voice/` (protocol + socket + audio),
       `UI/`, `Settings/`. Match the V05 structure preserved by V06.
-- [ ] Configure schemes for Debug (allows bearer override + dev URL) and
+- [x] Configure schemes for Debug (allows bearer override + dev URL) and
       Release (cookie auth only, fixed production URL).
-- [ ] Add a stub Settings screen reachable in Debug only, exposing a
+- [x] Add a stub Settings screen reachable in Debug only, exposing a
       `BackendURL` override stored in the user defaults / keychain as V05
       specifies.
 
 Checks:
 
-- [ ] Xcode build succeeds for both Debug and Release schemes on the Mac.
-- [ ] Static analysis / SwiftLint (if configured) clean.
+- [x] Xcode build succeeds for both Debug and Release schemes on the Mac.
+- [x] Static analysis / SwiftLint (if configured) clean.
 
 Commit reminder: reference this TODO file and "Phase M1".
 
