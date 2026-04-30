@@ -5,7 +5,8 @@ private let log = Logger(subsystem: "com.dashanddata.HermesVoice", category: "Vo
 
 // Accepted downlink formats offered during client_hello, in preference order.
 // The server picks the first it supports; V1 ships without Opus.
-private let kAcceptedDownlinks = ["aac_adts", "wav_pcm16"]
+// wav_pcm16 preferred for V1 — raw PCM, no codec required.
+private let kAcceptedDownlinks = ["wav_pcm16", "aac_adts"]
 
 // Heartbeat interval. The server closes idle connections after its idle timeout
 // (default 120 s); pinging at 25 s keeps the connection alive with headroom.

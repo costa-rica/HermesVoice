@@ -23,6 +23,7 @@ final class ConversationViewModel: ObservableObject {
 
     let socket: VoiceSocket
     private let capture = AudioCapture()
+    private let player = AudioPlayback()
 
     init(appConfig: AppConfig) {
         socket = VoiceSocket()
@@ -45,6 +46,9 @@ final class ConversationViewModel: ObservableObject {
     func startPTT() async {
         guard !isCapturing else { return }
         guard socket.connectionState == .connected else { return }
+
+        // Stop any in-progress assistant audio before capturing user speech.
+        player.cancelCurrentTurn()
 
         let allowed = await AudioSessionManager.requestMicPermission()
         guard allowed else {
@@ -104,8 +108,10 @@ final class ConversationViewModel: ObservableObject {
     // MARK: - Private: wire socket events into published state
 
     private func wireSocket() {
-        socket.onSessionStarted = { [weak self] _ in
-            self?.serverError = nil
+        socket.onSessionStarted = { [weak self] f in
+            guard let self else { return }
+            self.serverError = nil
+            self.player.configure(sampleRate: Double(f.downlinkSampleRate))
         }
 
         socket.onTurnStarted = { [weak self] f in
@@ -138,6 +144,10 @@ final class ConversationViewModel: ObservableObject {
                     ConversationMessage(id: UUID(), role: .assistant, text: f.text, turnID: f.turnID)
                 )
             }
+        }
+
+        socket.onAudioChunk = { [weak self] f, data in
+            self?.player.scheduleChunk(data, turnID: f.turnID)
         }
 
         socket.onActiveState = { [weak self] f in
