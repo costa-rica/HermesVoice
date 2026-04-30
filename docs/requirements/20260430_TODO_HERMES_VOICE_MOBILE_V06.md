@@ -99,27 +99,27 @@ Files likely touched:
 
 Tasks:
 
-- [ ] Add `client_hello` handling on `/ws/voice` immediately after upgrade.
+- [x] Add `client_hello` handling on `/ws/voice` immediately after upgrade.
       Parse `accepted_downlink_formats`; pick the first server-supported
       format in client preference order.
-- [ ] Extend `session_started` with `downlink_format`, `downlink_sample_rate`,
+- [x] Extend `session_started` with `downlink_format`, `downlink_sample_rate`,
       `downlink_channels`. Confirm web client still works (it does not send
       `client_hello`; server falls back to current implicit Opus path).
-- [ ] Close the socket with a typed `error` frame
+- [x] Close the socket with a typed `error` frame
       (`code="unsupported_downlink"`) when the intersection is empty.
-- [ ] Add `turn_id` to every turn-scoped JSON frame: `turn_started`,
+- [x] Add `turn_id` to every turn-scoped JSON frame: `turn_started`,
       `active_state` (when not `idle`), `transcript`, `assistant_text`,
       `thinking_progress`, `voice_turn_skipped`,
       `turn_end`/`turn_completed`. Make it additive — do not remove or rename
       existing fields.
-- [ ] Accept optional `turn_id` on inbound `cancel_turn`; if absent, cancel
+- [x] Accept optional `turn_id` on inbound `cancel_turn`; if absent, cancel
       the currently active turn. Echo the canceled `turn_id` in the
       resulting `turn_end`.
-- [ ] **Decision point:** choose Option A (per-chunk JSON `audio_chunk`
+- [x] **Decision point:** choose Option A (per-chunk JSON `audio_chunk`
       prelude) or Option B (suppress-until-next-`turn_started`). Default per
       V06: Option A. Record the choice and rationale in
       `docs/PROTOCOL.md`.
-- [ ] Implement the chosen Option on the server side. For Option A, emit the
+- [x] Implement the chosen Option on the server side. For Option A, emit the
       JSON `audio_chunk` envelope immediately before each binary frame, with
       monotonic per-turn `seq` and exact `bytes` count. For Option B, ensure
       the outbound TTS queue is drained or discarded on cancel before any
@@ -127,22 +127,22 @@ Tasks:
 
 Tests:
 
-- [ ] `test_client_hello_negotiation_aac_default`: client offers all four
+- [x] `test_client_hello_negotiation_aac_default`: client offers all four
       formats; server picks `aac_adts`.
-- [ ] `test_client_hello_negotiation_pcm_fallback`: client offers only
+- [x] `test_client_hello_negotiation_pcm_fallback`: client offers only
       `wav_pcm16`; server picks PCM.
-- [ ] `test_client_hello_unsupported_closes_with_typed_error`.
-- [ ] `test_turn_id_present_on_all_turn_scoped_frames`.
-- [ ] `test_cancel_turn_echoes_turn_id`.
-- [ ] Option A only: `test_audio_chunk_prelude_precedes_each_binary` and
+- [x] `test_client_hello_unsupported_closes_with_typed_error`.
+- [x] `test_turn_id_present_on_all_turn_scoped_frames`.
+- [x] `test_cancel_turn_echoes_turn_id`.
+- [x] Option A only: `test_audio_chunk_prelude_precedes_each_binary` and
       `test_audio_chunk_bytes_match_binary_length`.
 - [ ] Option B only: `test_no_binary_after_cancel_until_next_turn_started`.
-- [ ] Existing backend test suite unchanged on the web path (no `client_hello`
+- [x] Existing backend test suite unchanged on the web path (no `client_hello`
       sent → behavior identical to V05).
 
 Checks:
 
-- [ ] Backend: full `pytest` passes (no regressions on existing 28+ tests).
+- [x] Backend: full `pytest` passes (no regressions on existing 28+ tests).
 - [ ] Web: no web-side change required; verify `npm run build` still passes
       only if any shared types were touched.
 

@@ -40,7 +40,7 @@ async def _next_line_with_timeout(
         return await asyncio.wait_for(iterator.__anext__(), timeout=timeout)
     except StopAsyncIteration:
         raise
-    except TimeoutError as exc:
+    except asyncio.TimeoutError as exc:
         logger.info(
             f"{timeout_event} | cid={conversation_id} timeout_s={timeout:.1f}"
         )

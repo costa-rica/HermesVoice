@@ -88,7 +88,11 @@ async def _send_thinking_progress(
             await asyncio.sleep(interval)
             if get_active_turn_id() != turn_id:
                 return
-            await send_json({"event": "active_state", "state": "thinking_progress"})
+            await send_json({
+                "event": "active_state",
+                "state": "thinking_progress",
+                "turn_id": str(turn_id),
+            })
     except asyncio.CancelledError:
         raise
 
@@ -106,15 +110,20 @@ async def _cancel_progress_task(task: asyncio.Task[None] | None) -> None:
 async def _skip_too_short_audio(
     timer: TurnTimer,
     send_json: Callable[[dict], Coroutine[Any, Any, None]],
+    turn_id: int,
 ) -> None:
     timer.log(
         "latency.turn_skipped",
         reason="audio_too_short",
         min_utterance_bytes=settings.MIN_UTTERANCE_BYTES,
     )
-    await send_json({"event": "voice_turn_skipped", "reason": "audio_too_short"})
+    await send_json({
+        "event": "voice_turn_skipped",
+        "reason": "audio_too_short",
+        "turn_id": str(turn_id),
+    })
     await send_json({"event": "active_state", "state": "idle"})
-    await send_json({"event": "turn_end"})
+    await send_json({"event": "turn_end", "turn_id": str(turn_id)})
 
 
 async def run_voice_turn(
@@ -125,6 +134,7 @@ async def run_voice_turn(
     send_bytes: Callable[[bytes], Coroutine[Any, Any, None]],
     turn_id: int,
     get_active_turn_id: Callable[[], int],
+    downlink_format: str = "opus_ogg",
     sample_rate: int | None = None,
     utterance_buffer_ms: float | None = None,
 ) -> None:
@@ -143,10 +153,11 @@ async def run_voice_turn(
     )
     timer.log("latency.turn_started")
     progress_task: asyncio.Task[None] | None = None
+    wire_turn_id = str(turn_id)
 
     try:
         if len(audio_bytes) < settings.MIN_UTTERANCE_BYTES:
-            await _skip_too_short_audio(timer, send_json)
+            await _skip_too_short_audio(timer, send_json, turn_id)
             return
 
         # STT
@@ -161,9 +172,9 @@ async def run_voice_turn(
         if get_active_turn_id() != turn_id:
             return
 
-        await send_json({"event": "transcript", "text": transcript})
-        await send_json({"event": "active_state", "state": "thinking"})
-        await send_json({"event": "turn_started"})
+        await send_json({"event": "transcript", "text": transcript, "turn_id": wire_turn_id})
+        await send_json({"event": "active_state", "state": "thinking", "turn_id": wire_turn_id})
+        await send_json({"event": "turn_started", "turn_id": wire_turn_id})
 
         # Hermes -> TTS pipeline; accumulate full text for assistant_text frame
         full_assistant_text = ""
@@ -217,8 +228,15 @@ async def run_voice_turn(
                     "latency.first_audio_sent",
                     first_audio_from_turn_start_ms=timer.elapsed_ms(),
                 )
-                await send_json({"event": "active_state", "state": "speaking"})
+                await send_json({"event": "active_state", "state": "speaking", "turn_id": wire_turn_id})
 
+            await send_json({
+                "event": "audio_chunk",
+                "turn_id": wire_turn_id,
+                "seq": chunk_count,
+                "format": downlink_format,
+                "bytes": len(audio),
+            })
             await send_bytes(audio)
             chunk_count += 1
 
@@ -233,11 +251,16 @@ async def run_voice_turn(
         )
 
         if full_assistant_text:
-            await send_json({"event": "assistant_text", "text": full_assistant_text, "final": True})
+            await send_json({
+                "event": "assistant_text",
+                "text": full_assistant_text,
+                "final": True,
+                "turn_id": wire_turn_id,
+            })
 
-        await send_json({"event": "turn_completed"})
+        await send_json({"event": "turn_completed", "turn_id": wire_turn_id})
         await send_json({"event": "active_state", "state": "idle"})
-        await send_json({"event": "turn_end"})
+        await send_json({"event": "turn_end", "turn_id": wire_turn_id})
 
         timer.log(
             "latency.turn_completed",

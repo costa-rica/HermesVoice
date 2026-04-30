@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -18,6 +19,22 @@ from ..services.stt import ACCEPTED_FORMATS
 router = APIRouter()
 
 _PRODUCTION_ORIGINS = {"https://hermes-voice.dashanddata.com"}
+_CLIENT_HELLO_TIMEOUT_SECONDS = 0.05
+
+
+@dataclass(frozen=True)
+class DownlinkChoice:
+    format: str
+    sample_rate: int
+    channels: int
+
+
+_SUPPORTED_DOWNLINKS: dict[str, DownlinkChoice] = {
+    "aac_adts": DownlinkChoice("aac_adts", 24000, 1),
+    "wav_pcm16": DownlinkChoice("wav_pcm16", 16000, 1),
+    "opus_ogg": DownlinkChoice("opus_ogg", 24000, 1),
+}
+_WEB_DEFAULT_DOWNLINK = _SUPPORTED_DOWNLINKS["opus_ogg"]
 
 
 def _check_origin(websocket: WebSocket) -> bool:
@@ -25,6 +42,53 @@ def _check_origin(websocket: WebSocket) -> bool:
     if settings.RUN_ENVIRONMENT == "production":
         return origin in _PRODUCTION_ORIGINS
     return True
+
+
+def _session_started_frame(conversation_id: str, downlink: DownlinkChoice) -> dict:
+    return {
+        "event": "session_started",
+        "conversation_id": conversation_id,
+        "downlink_format": downlink.format,
+        "downlink_sample_rate": downlink.sample_rate,
+        "downlink_channels": downlink.channels,
+    }
+
+
+def _choose_downlink(frame: dict) -> DownlinkChoice | None:
+    accepted = frame.get("accepted_downlink_formats")
+    if not isinstance(accepted, list):
+        return None
+    for candidate in accepted:
+        if isinstance(candidate, str) and candidate in _SUPPORTED_DOWNLINKS:
+            return _SUPPORTED_DOWNLINKS[candidate]
+    return None
+
+
+async def _receive_client_hello(websocket: WebSocket) -> tuple[DownlinkChoice, dict | None, bool]:
+    """Return downlink, optional already-read non-hello message, and supported flag."""
+    try:
+        msg = await asyncio.wait_for(websocket.receive(), timeout=_CLIENT_HELLO_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        return _WEB_DEFAULT_DOWNLINK, None, True
+
+    if msg["type"] == "websocket.disconnect":
+        return _WEB_DEFAULT_DOWNLINK, msg, True
+
+    if msg["type"] != "websocket.receive" or "text" not in msg or msg["text"] is None:
+        return _WEB_DEFAULT_DOWNLINK, msg, True
+
+    try:
+        frame = json.loads(msg["text"])
+    except json.JSONDecodeError:
+        return _WEB_DEFAULT_DOWNLINK, msg, True
+
+    if frame.get("event") != "client_hello":
+        return _WEB_DEFAULT_DOWNLINK, msg, True
+
+    downlink = _choose_downlink(frame)
+    if downlink is None:
+        return _WEB_DEFAULT_DOWNLINK, None, False
+    return downlink, None, True
 
 
 @router.websocket("/ws/voice")
@@ -44,7 +108,18 @@ async def ws_voice(websocket: WebSocket) -> None:
     await websocket.accept()
 
     conversation_id = str(uuid.uuid4())
-    await websocket.send_json({"event": "session_started", "conversation_id": conversation_id})
+    downlink, pending_msg, downlink_supported = await _receive_client_hello(websocket)
+    if not downlink_supported:
+        await websocket.send_json(
+            ws_error_frame(
+                "unsupported_downlink",
+                "None of the requested downlink formats are supported",
+                400,
+            )
+        )
+        await websocket.close(code=4000)
+        return
+    await websocket.send_json(_session_started_frame(conversation_id, downlink))
 
     audio_buffer: bytearray = bytearray()
     current_format: Optional[str] = None
@@ -54,6 +129,7 @@ async def ws_voice(websocket: WebSocket) -> None:
 
     active_task: Optional[asyncio.Task] = None
     turn_counter = 0
+    active_wire_turn_id: str | None = None
 
     def get_active_turn_id() -> int:
         return turn_counter
@@ -70,8 +146,9 @@ async def ws_voice(websocket: WebSocket) -> None:
         except Exception:
             pass
 
-    async def cancel_active_turn() -> None:
-        nonlocal active_task, turn_counter
+    async def cancel_active_turn() -> str | None:
+        nonlocal active_task, turn_counter, active_wire_turn_id
+        canceled_turn_id = active_wire_turn_id
         if active_task and not active_task.done():
             turn_counter += 1
             active_task.cancel()
@@ -80,19 +157,25 @@ async def ws_voice(websocket: WebSocket) -> None:
             except (asyncio.CancelledError, Exception):
                 pass
         active_task = None
+        active_wire_turn_id = None
+        return canceled_turn_id
 
     try:
         idle_timeout = settings.IDLE_TIMEOUT
 
         while True:
-            try:
-                msg = await asyncio.wait_for(websocket.receive(), timeout=idle_timeout)
-            except asyncio.TimeoutError:
-                logger.info("WebSocket idle timeout, closing")
-                await websocket.send_json(
-                    ws_error_frame("IDLE_TIMEOUT", "Connection idle timeout", 408)
-                )
-                break
+            if pending_msg is not None:
+                msg = pending_msg
+                pending_msg = None
+            else:
+                try:
+                    msg = await asyncio.wait_for(websocket.receive(), timeout=idle_timeout)
+                except asyncio.TimeoutError:
+                    logger.info("WebSocket idle timeout, closing")
+                    await websocket.send_json(
+                        ws_error_frame("IDLE_TIMEOUT", "Connection idle timeout", 408)
+                    )
+                    break
 
             if msg["type"] == "websocket.disconnect":
                 break
@@ -185,6 +268,7 @@ async def ws_voice(websocket: WebSocket) -> None:
                         await cancel_active_turn()
                         turn_counter += 1
                         my_turn_id = turn_counter
+                        active_wire_turn_id = str(my_turn_id)
 
                         active_task = asyncio.create_task(
                             run_voice_turn(
@@ -195,19 +279,37 @@ async def ws_voice(websocket: WebSocket) -> None:
                                 send_bytes=send_bytes,
                                 turn_id=my_turn_id,
                                 get_active_turn_id=get_active_turn_id,
+                                downlink_format=downlink.format,
                                 sample_rate=current_sample_rate,
                                 utterance_buffer_ms=utterance_buffer_ms,
                             )
                         )
 
+                        def clear_completed_task(
+                            task: asyncio.Task,
+                            wire_turn_id: str = active_wire_turn_id,
+                        ) -> None:
+                            nonlocal active_task, active_wire_turn_id
+                            if task is active_task and active_wire_turn_id == wire_turn_id:
+                                active_task = None
+                                active_wire_turn_id = None
+
+                        active_task.add_done_callback(clear_completed_task)
+
                     elif event == "cancel_turn":
-                        await cancel_active_turn()
+                        requested_turn_id = frame.get("turn_id")
+                        canceled_turn_id = await cancel_active_turn()
+                        if isinstance(requested_turn_id, str):
+                            canceled_turn_id = requested_turn_id
                         audio_buffer.clear()
                         utterance_started = False
                         utterance_started_at = None
                         logger.info("cancel_turn received, active task cancelled")
                         await send_json({"event": "active_state", "state": "idle"})
-                        await send_json({"event": "turn_end"})
+                        turn_end = {"event": "turn_end"}
+                        if canceled_turn_id is not None:
+                            turn_end["turn_id"] = canceled_turn_id
+                        await send_json(turn_end)
 
                     elif event == "ping":
                         pong: dict = {"event": "pong"}
@@ -221,7 +323,7 @@ async def ws_voice(websocket: WebSocket) -> None:
                         utterance_started = False
                         utterance_started_at = None
                         conversation_id = str(uuid.uuid4())
-                        await send_json({"event": "session_started", "conversation_id": conversation_id})
+                        await send_json(_session_started_frame(conversation_id, downlink))
                         logger.info(f"New session: {conversation_id}")
 
                     else:

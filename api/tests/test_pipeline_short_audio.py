@@ -47,7 +47,11 @@ async def test_short_audio_skips_stt_and_returns_idle():
 
     transcribe.assert_not_called()
     assert sent_bytes == []
-    assert {"event": "voice_turn_skipped", "reason": "audio_too_short"} in sent_json
+    assert {
+        "event": "voice_turn_skipped",
+        "reason": "audio_too_short",
+        "turn_id": "1",
+    } in sent_json
     assert {"event": "active_state", "state": "idle"} in sent_json
 
 
