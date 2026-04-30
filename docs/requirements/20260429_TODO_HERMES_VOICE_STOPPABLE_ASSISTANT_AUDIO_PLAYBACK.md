@@ -45,21 +45,21 @@ new assistant turn is clearly allowed.
 
 ## Acceptance Criteria
 
-- [ ] Pressing cancel while assistant audio is currently playing stops the active
+- [x] Pressing cancel while assistant audio is currently playing stops the active
   browser `AudioBufferSourceNode` immediately.
-- [ ] Pressing cancel clears queued assistant audio that has not started yet.
-- [ ] Pressing cancel still sends exactly one `{ "event": "cancel_turn" }`
+- [x] Pressing cancel clears queued assistant audio that has not started yet.
+- [x] Pressing cancel still sends exactly one `{ "event": "cancel_turn" }`
   frame over the existing WebSocket path.
-- [ ] Binary audio frames that arrive after local cancel are ignored and are not
+- [x] Binary audio frames that arrive after local cancel are ignored and are not
   enqueued for playback.
-- [ ] Starting a new user recording resets the local audio-cancel guard so the
+- [x] Starting a new user recording resets the local audio-cancel guard so the
   next turn can play audio normally.
-- [ ] Normal assistant audio playback remains sequential for non-canceled turns.
-- [ ] Decode failures continue to skip bad chunks and advance to later queued
+- [x] Normal assistant audio playback remains sequential for non-canceled turns.
+- [x] Decode failures continue to skip bad chunks and advance to later queued
   chunks.
-- [ ] All new behavior is covered by failing-first Vitest tests.
-- [ ] `cd web && npm test -- --run` passes.
-- [ ] `cd web && npm run build` passes.
+- [x] All new behavior is covered by failing-first Vitest tests.
+- [x] `cd web && npm test -- --run` passes.
+- [x] `cd web && npm run build` passes.
 
 ## Files Likely Touched
 
@@ -181,12 +181,12 @@ For every implementation phase:
 
 ### Phase 4 — Regression hardening and final verification
 
-- [ ] Review and update existing mocked `AudioQueue` shapes in:
+- [x] Review and update existing mocked `AudioQueue` shapes in:
   - `web/src/__tests__/connection-status-ux.test.ts`
   - `web/src/__tests__/heartbeat-lifecycle.test.ts`
-- [ ] Add any missing regression test from implementation findings, especially
+- [x] Add any missing regression test from implementation findings, especially
   around stale async `decodeAudioData()` completion after cancel.
-- [ ] Run final verification:
+- [x] Run final verification:
   - `cd web && npm test -- --run`
   - `cd web && npm run build`
 - [ ] Manually smoke test in a browser:

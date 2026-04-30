@@ -39,6 +39,16 @@ function enqueueChunk(queue: AudioQueue, id: number): void {
   queue.enqueue(new Uint8Array([id]).buffer);
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 async function makeQueue(): Promise<AudioQueue> {
   const mod = await import('../audio');
   return new mod.AudioQueue();
@@ -144,5 +154,22 @@ describe('AudioQueue stoppable playback', () => {
 
     expect(sources).toHaveLength(1);
     expect(sources[0].start).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start audio when decode finishes after clear', async () => {
+    const decode = deferred<unknown>();
+    decodeAudioData.mockReturnValueOnce(decode.promise);
+    const queue = await makeQueue();
+
+    enqueueChunk(queue, 1);
+    for (let i = 0; i < 10 && decodeAudioData.mock.calls.length === 0; i++) {
+      await flushPromises();
+    }
+
+    queue.clear();
+    decode.resolve({ decoded: 1 });
+    await flushPromises();
+
+    expect(sources).toHaveLength(0);
   });
 });
