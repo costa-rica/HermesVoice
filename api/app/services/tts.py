@@ -18,16 +18,17 @@ def _get_client() -> AsyncOpenAI:
     return _client
 
 
-async def synthesize(text: str) -> bytes:
+async def synthesize(text: str, format: str | None = None) -> bytes:
     """Convert a text chunk to audio bytes via OpenAI TTS. Returns complete audio bytes."""
-    logger.info(f"TTS: synthesizing {len(text)} chars: {text[:60]!r}")
+    fmt = format or settings.TTS_FORMAT
+    logger.info(f"TTS: synthesizing {len(text)} chars (format={fmt!r}): {text[:60]!r}")
     client = _get_client()
 
     response = await client.audio.speech.create(
         model=settings.TTS_MODEL,
         voice=settings.TTS_VOICE,
         input=text,
-        response_format=settings.TTS_FORMAT,
+        response_format=fmt,
     )
 
     audio_bytes = response.content

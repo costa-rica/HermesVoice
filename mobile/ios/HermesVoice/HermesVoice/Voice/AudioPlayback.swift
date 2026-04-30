@@ -5,9 +5,8 @@ private let log = Logger(subsystem: "com.dashanddata.HermesVoice", category: "Au
 
 /// Streams server-side TTS audio (wav_pcm16 chunks) to the speaker.
 ///
-/// Chunks arrive as raw int16 LE PCM bytes. Each chunk is wrapped in an
-/// AVAudioPCMBuffer and scheduled on the player node, so playback is
-/// continuous without gaps between chunks.
+/// The server sends raw int16 LE PCM at 24 kHz (OpenAI "pcm" format, no header).
+/// AVAudioPlayerNode requires float32, so each chunk is converted on arrival.
 @MainActor
 final class AudioPlayback {
 
@@ -15,33 +14,33 @@ final class AudioPlayback {
     private let playerNode = AVAudioPlayerNode()
     private(set) var currentTurnID: String?
 
-    // Fixed at the negotiated format; reconfigured on session_started if needed.
-    private var pcmFormat: AVAudioFormat
+    // Float32 non-interleaved — the only format AVAudioPlayerNode accepts.
+    private var playFormat: AVAudioFormat
 
-    init(sampleRate: Double = 16_000) {
-        pcmFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
+    init(sampleRate: Double = 24_000) {
+        playFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
             channels: 1,
-            interleaved: true
+            interleaved: false
         )!
         engine.attach(playerNode)
-        engine.connect(playerNode, to: engine.mainMixerNode, format: pcmFormat)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: playFormat)
     }
 
     // MARK: - Session negotiation
 
     /// Call when session_started arrives to match the server's sample rate.
     func configure(sampleRate: Double) {
-        guard sampleRate != pcmFormat.sampleRate else { return }
-        pcmFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
+        guard sampleRate != playFormat.sampleRate else { return }
+        playFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
             channels: 1,
-            interleaved: true
+            interleaved: false
         )!
         engine.disconnectNodeOutput(playerNode)
-        engine.connect(playerNode, to: engine.mainMixerNode, format: pcmFormat)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: playFormat)
         log.info("AudioPlayback reconfigured: \(sampleRate, privacy: .public) Hz")
     }
 
@@ -60,21 +59,25 @@ final class AudioPlayback {
 
         startEngineIfNeeded()
 
-        let frameCount = AVAudioFrameCount(data.count / 2)  // 2 bytes per int16 sample
+        // Server sends raw int16 LE (no WAV header). Convert to float32 for AVAudioPlayerNode.
+        let frameCount = AVAudioFrameCount(data.count / 2)
         guard frameCount > 0,
-              let buffer = AVAudioPCMBuffer(pcmFormat: pcmFormat, frameCapacity: frameCount)
+              let buffer = AVAudioPCMBuffer(pcmFormat: playFormat, frameCapacity: frameCount)
         else { return }
 
         buffer.frameLength = frameCount
+        let scale = Float(1.0 / Float(Int16.max))
         data.withUnsafeBytes { raw in
             guard let src = raw.bindMemory(to: Int16.self).baseAddress,
-                  let dst = buffer.int16ChannelData else { return }
-            dst[0].assign(from: src, count: Int(frameCount))
+                  let dst = buffer.floatChannelData else { return }
+            for i in 0..<Int(frameCount) {
+                dst[0][i] = Float(src[i]) * scale
+            }
         }
 
         if !playerNode.isPlaying { playerNode.play() }
         playerNode.scheduleBuffer(buffer)
-        log.debug("Scheduled \(frameCount) frames for turn \(turnID) seq chunk")
+        log.debug("Scheduled \(frameCount) frames for turn \(turnID)")
     }
 
     /// Immediately stops playback (called on cancel_turn or new PTT press).

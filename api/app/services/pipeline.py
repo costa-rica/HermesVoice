@@ -209,7 +209,9 @@ async def run_voice_turn(
                 return
 
             timer.mark("tts_start")
-            audio = await synthesize(chunk)
+            # wav_pcm16 downlink: request raw PCM from OpenAI (int16 LE, 24 kHz, mono, no header).
+            tts_fmt = "pcm" if downlink_format == "wav_pcm16" else None
+            audio = await synthesize(chunk, format=tts_fmt)
             timer.log(
                 "latency.tts_completed",
                 chunk_n=chunk_count,
