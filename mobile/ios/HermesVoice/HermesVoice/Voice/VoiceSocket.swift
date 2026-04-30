@@ -25,7 +25,11 @@ final class VoiceSocket: ObservableObject {
         case failed
     }
 
-    @Published private(set) var connectionState: ConnectionState = .disconnected
+    @Published private(set) var connectionState: ConnectionState = .disconnected {
+        didSet { if oldValue != connectionState { onConnectionStateChanged?(connectionState) } }
+    }
+
+    var onConnectionStateChanged: ((ConnectionState) -> Void)?
 
     // Negotiated session info, set on session_started
     @Published private(set) var conversationID: String?

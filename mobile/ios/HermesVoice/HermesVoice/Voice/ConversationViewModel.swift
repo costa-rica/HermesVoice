@@ -3,6 +3,10 @@ import OSLog
 
 private let log = Logger(subsystem: "com.dashanddata.HermesVoice", category: "ConversationViewModel")
 
+// Reconnect backoff: 1 s, 2 s, 4 s, 8 s, 16 s, then cap at 30 s.
+private let kBackoffBase: TimeInterval = 1
+private let kBackoffMax:  TimeInterval = 30
+
 struct ConversationMessage: Identifiable, Sendable {
     enum Role: Sendable { case user, assistant }
     let id: UUID
@@ -16,14 +20,20 @@ final class ConversationViewModel: ObservableObject {
 
     @Published private(set) var messages: [ConversationMessage] = []
     @Published private(set) var activeState: ActiveState = .idle
-    @Published private(set) var connectionState: VoiceSocket.ConnectionState = .disconnected
     @Published private(set) var serverError: String?
     @Published private(set) var isCapturing = false
     @Published private(set) var micPermissionDenied = false
+    /// Set to true when the server rejects the session cookie. The view layer
+    /// should sign the user out and route back to LoginView.
+    @Published private(set) var authExpired = false
 
     let socket: VoiceSocket
     private let capture = AudioCapture()
     private let player = AudioPlayback()
+
+    private var appConfig: AppConfig?
+    private var reconnectTask: Task<Void, Never>?
+    private var backoffDelay: TimeInterval = kBackoffBase
 
     init(appConfig: AppConfig) {
         socket = VoiceSocket()
@@ -33,12 +43,39 @@ final class ConversationViewModel: ObservableObject {
     // MARK: - Connection lifecycle
 
     func connect(config: AppConfig) {
+        appConfig = config
+        backoffDelay = kBackoffBase
         socket.connect(to: config.webSocketURL)
     }
 
     func disconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
         stopCaptureIfNeeded()
         socket.disconnect()
+    }
+
+    /// Manually retry the connection (called from the banner tap).
+    func reconnect() {
+        guard let config = appConfig else { return }
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        backoffDelay = kBackoffBase
+        socket.connect(to: config.webSocketURL)
+    }
+
+    // MARK: - Private: auto-reconnect
+
+    private func scheduleReconnect() {
+        guard let config = appConfig else { return }
+        let delay = backoffDelay
+        backoffDelay = min(backoffDelay * 2, kBackoffMax)
+        log.info("Reconnecting in \(delay, privacy: .public) s")
+        reconnectTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            socket.connect(to: config.webSocketURL)
+        }
     }
 
     // MARK: - PTT
@@ -108,6 +145,22 @@ final class ConversationViewModel: ObservableObject {
     // MARK: - Private: wire socket events into published state
 
     private func wireSocket() {
+        socket.onConnectionStateChanged = { [weak self] state in
+            guard let self else { return }
+            switch state {
+            case .connected:
+                self.backoffDelay = kBackoffBase   // reset on success
+            case .failed:
+                self.stopCaptureIfNeeded()
+                self.scheduleReconnect()
+            case .authFailed:
+                self.stopCaptureIfNeeded()
+                self.authExpired = true
+            default:
+                break
+            }
+        }
+
         socket.onSessionStarted = { [weak self] f in
             guard let self else { return }
             self.serverError = nil

@@ -4,6 +4,7 @@ struct ConversationView: View {
     let appConfig: AppConfig
 
     @StateObject private var vm: ConversationViewModel
+    @EnvironmentObject private var sessionStore: SessionStore
     @Environment(\.scenePhase) private var scenePhase
 
     init(appConfig: AppConfig) {
@@ -48,6 +49,9 @@ struct ConversationView: View {
             if newPhase != .active {
                 Task { await vm.handleBackground() }
             }
+        }
+        .onChange(of: vm.authExpired) { _, expired in
+            if expired { Task { await sessionStore.logout() } }
         }
     }
 
@@ -115,6 +119,7 @@ struct ConversationView: View {
                 banner("Connecting…", icon: "wifi", color: .orange)
             case .failed:
                 banner("Connection failed — tap to retry", icon: "wifi.slash", color: .red)
+                    .onTapGesture { vm.reconnect() }
             case .authFailed:
                 banner("Session expired — please sign in again", icon: "lock.slash", color: .red)
             case .disconnected:
