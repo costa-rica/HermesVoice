@@ -1,29 +1,23 @@
 import SwiftUI
 
-struct LoginView: View {
+struct VerifyView: View {
+    let challengeID: String
+    let email: String
+
     @EnvironmentObject private var sessionStore: SessionStore
-    @State private var email = ""
-    @State private var password = ""
+    @State private var code = ""
     @State private var errorMessage: String?
-    @State private var challengeID: String?
 
     var body: some View {
-        if let challengeID {
-            VerifyView(challengeID: challengeID, email: email)
-        } else {
-            loginForm
-        }
-    }
-
-    private var loginForm: some View {
         Form {
             Section {
-                TextField("Email", text: $email)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                Text("Enter the verification code sent to \(email).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
-                SecureField("Password", text: $password)
+                TextField("Code", text: $code)
+                    .keyboardType(.numberPad)
+                    .textContentType(.oneTimeCode)
             }
 
             if let errorMessage {
@@ -40,21 +34,21 @@ struct LoginView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text("Sign In")
+                        Text("Verify")
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .disabled(sessionStore.isLoading || email.isEmpty || password.isEmpty)
+                .disabled(sessionStore.isLoading || code.isEmpty)
             }
         }
-        .navigationTitle("Sign In")
+        .navigationTitle("Verify")
     }
 
     private func submit() {
         errorMessage = nil
         Task {
             do {
-                challengeID = try await sessionStore.login(email: email, password: password)
+                try await sessionStore.verify(challengeID: challengeID, code: code)
             } catch {
                 errorMessage = error.localizedDescription
             }

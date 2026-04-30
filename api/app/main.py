@@ -12,7 +12,7 @@ from loguru import logger
 from .auth import verify_session
 from .config import settings
 from .logging_config import configure_logging
-from .routes import health, voice, web
+from .routes import health, mobile_auth, voice, web
 
 configure_logging(
     name_app=settings.NAME_APP,
@@ -50,6 +50,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(mobile_auth.router)
 app.include_router(web.router)
 app.include_router(voice.router)
 

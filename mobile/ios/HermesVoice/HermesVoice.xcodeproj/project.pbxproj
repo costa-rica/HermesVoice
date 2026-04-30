@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		025084C3DC635145D6F31444 /* VerifyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46247AA70D477F0E94B7092B /* VerifyView.swift */; };
 		373CE61932F6CEC447DE8FB8 /* VoiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93FA42283E6931110127BDB7 /* VoiceProtocol.swift */; };
 		438C4EA9CD17CE2125A6DBB5 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2244919DAFF556727BA605C0 /* AppModel.swift */; };
 		4BE79D779BC0DD09693A20E8 /* HermesVoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0309470B51254D0C6611C26E /* HermesVoiceTests.swift */; };
@@ -46,6 +47,7 @@
 		28412E363EB814DC712DB35D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		33618AE3B04F408F05E06F79 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		373162B3032FBABEE10C4D75 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		46247AA70D477F0E94B7092B /* VerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifyView.swift; sourceTree = "<group>"; };
 		5B4BFB0D2F5FD0AEF1FD6FDC /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		5CD5E9AEA39A1D869160C8F2 /* DeveloperSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperSettingsStore.swift; sourceTree = "<group>"; };
 		6029A9896AC8BAC6E2CA137C /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
@@ -88,6 +90,7 @@
 				F5C3C7631A3B3FFC80835F62 /* AuthClient.swift */,
 				140A1CB9247908A2F3F35CE7 /* LoginView.swift */,
 				CEF8093E093E40EF73D6EE1D /* SessionStore.swift */,
+				46247AA70D477F0E94B7092B /* VerifyView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -278,6 +281,7 @@
 				5A430FA4C5817EA91FBB731B /* RootView.swift in Sources */,
 				DE49B422B0415CE04D4B1269 /* SessionStore.swift in Sources */,
 				4F98434705DC4C98A5510DAD /* SettingsView.swift in Sources */,
+				025084C3DC635145D6F31444 /* VerifyView.swift in Sources */,
 				373CE61932F6CEC447DE8FB8 /* VoiceProtocol.swift in Sources */,
 				4FCDFEDB90C6FA7A706B3D33 /* VoiceSocket.swift in Sources */,
 			);
