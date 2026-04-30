@@ -2,10 +2,9 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appModel: AppModel
+    @EnvironmentObject private var sessionStore: SessionStore
 
     var body: some View {
-        let sessionStore = appModel.sessionStore
-
         Group {
             if !sessionStore.isInitialCheckDone {
                 ProgressView("Connecting…")
@@ -37,7 +36,6 @@ struct RootView: View {
                 }
             }
         }
-        .environmentObject(sessionStore)
         .task {
             await sessionStore.checkSession()
         }

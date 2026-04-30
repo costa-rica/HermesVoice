@@ -9,6 +9,7 @@ struct HermesVoiceApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appModel)
+                .environmentObject(appModel.sessionStore)
                 .onChange(of: scenePhase) { _, newPhase in
                     appModel.scenePhase = newPhase
                 }
