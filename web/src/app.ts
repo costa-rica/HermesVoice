@@ -3,10 +3,12 @@ import type { BadgeState, ChatMessage, ConnectionState, LatencyTimings, TurnStat
 import {
   appendMessage,
   clearError,
+  isBackendTurnCancellable,
   renderApp,
   showError,
   showToast,
   updateConnectionState,
+  updateCancelVisibility,
   updateTimings,
   updateTurnState,
 } from './ui';
@@ -17,12 +19,13 @@ const HEARTBEAT_TIMEOUT_MS = 10_000;
 
 export class App {
   private mic = new MicCapture();
-  private audioQueue = new AudioQueue();
+  private audioQueue = new AudioQueue((active) => this.setAssistantPlaybackActive(active));
   private ws: VoiceSocket;
 
   private connState: ConnectionState = 'disconnected';
   private badgeState: BadgeState = 'offline';
   private turnState: TurnState = 'idle';
+  private assistantPlaybackActive = false;
   private timings: LatencyTimings = {};
   private isRecording = false;
   private suppressAssistantAudio = false;
@@ -104,6 +107,7 @@ export class App {
   private setTurnState(state: TurnState): void {
     this.turnState = state;
     updateTurnState(state);
+    updateCancelVisibility(state, this.assistantPlaybackActive);
     // Re-evaluate PTT disabled state whenever turn state changes
     const btn = document.getElementById('btn-ptt') as HTMLButtonElement;
     if (btn) {
@@ -113,6 +117,15 @@ export class App {
         && (state === 'idle' || state === 'listening' || state === 'recording')
       );
     }
+  }
+
+  private isBackendTurnCancellable(): boolean {
+    return isBackendTurnCancellable(this.turnState);
+  }
+
+  private setAssistantPlaybackActive(active: boolean): void {
+    this.assistantPlaybackActive = active;
+    updateCancelVisibility(this.turnState, active);
   }
 
   private handleWsOpen(): void {
@@ -256,8 +269,12 @@ export class App {
   }
 
   private sendCancelTurn(): void {
-    this.ws.sendJson({ event: 'cancel_turn' });
+    const shouldCancelBackendTurn = this.isBackendTurnCancellable();
     this.audioQueue.clear();
+    this.setAssistantPlaybackActive(false);
+    if (shouldCancelBackendTurn) {
+      this.ws.sendJson({ event: 'cancel_turn' });
+    }
     this.suppressAssistantAudio = true;
     // Optimistically reset local turn state — server will confirm with active_state=idle
     this.setTurnState('idle');

@@ -1,17 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioQueue } from '../audio';
-import { updateTimings, updateTurnState } from '../ui';
+import { updateCancelVisibility, updateTimings, updateTurnState } from '../ui';
 
 vi.mock('../ui', () => ({
   renderApp: vi.fn(),
+  isBackendTurnCancellable: (state: string) => (
+    state === 'thinking'
+    || state === 'thinking_progress'
+    || state === 'speaking'
+  ),
   updateConnectionState: vi.fn(),
   updateTurnState: vi.fn(),
   appendMessage: vi.fn(),
   clearError: vi.fn(),
   showError: vi.fn(),
   showToast: vi.fn(),
+  updateCancelVisibility: vi.fn(),
   updateTimings: vi.fn(),
 }));
+
+let playbackActiveChanged: ((active: boolean) => void) | null = null;
 
 vi.mock('../audio', () => ({
   MicCapture: vi.fn().mockImplementation(() => ({
@@ -20,10 +28,13 @@ vi.mock('../audio', () => ({
     stop: vi.fn().mockResolvedValue(new Blob()),
     getAudioFormat: vi.fn().mockReturnValue('webm/opus'),
   })),
-  AudioQueue: vi.fn().mockImplementation(() => ({
+  AudioQueue: vi.fn().mockImplementation((onPlaybackActiveChanged?: (active: boolean) => void) => {
+    playbackActiveChanged = onPlaybackActiveChanged ?? null;
+    return {
     enqueue: vi.fn(),
     clear: vi.fn(),
-  })),
+    };
+  }),
 }));
 
 import { App } from '../app';
@@ -120,6 +131,7 @@ describe('assistant audio cancel', () => {
     vi.useFakeTimers();
     setupDom();
     mockWsInstance = null;
+    playbackActiveChanged = null;
     wsConstructionCount = 0;
     vi.stubGlobal('WebSocket', makeMockWebSocketClass());
     app = new App(document.getElementById('app')!);
@@ -131,8 +143,11 @@ describe('assistant audio cancel', () => {
     vi.useRealTimers();
   });
 
-  it('clicking cancel sends exactly one cancel_turn frame', async () => {
+  it.each(['thinking', 'speaking'] as const)(
+    'clicking cancel sends exactly one cancel_turn frame when backend state is %s',
+    async (state) => {
     await connectAndReady(app);
+    mockWsInstance!.simulateJson({ event: 'active_state', state });
 
     document.getElementById('btn-cancel')!.click();
 
@@ -140,7 +155,8 @@ describe('assistant audio cancel', () => {
       .map(([raw]) => JSON.parse(raw as string) as { event: string })
       .filter((frame) => frame.event === 'cancel_turn');
     expect(cancelFrames).toHaveLength(1);
-  });
+    }
+  );
 
   it('clicking cancel clears local assistant audio immediately', async () => {
     await connectAndReady(app);
@@ -184,6 +200,40 @@ describe('assistant audio cancel', () => {
     mockWsInstance!.simulateBinary();
 
     expect(queue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps cancel visible after audio starts and backend returns idle', async () => {
+    await connectAndReady(app);
+    mockWsInstance!.simulateJson({ event: 'active_state', state: 'speaking' });
+
+    playbackActiveChanged?.(true);
+    mockWsInstance!.simulateJson({ event: 'active_state', state: 'idle' });
+
+    expect(vi.mocked(updateCancelVisibility)).toHaveBeenLastCalledWith('idle', true);
+  });
+
+  it('playback-only idle cancel clears audio but does not send cancel_turn', async () => {
+    await connectAndReady(app);
+    const queue = audioQueueMock();
+
+    playbackActiveChanged?.(true);
+    mockWsInstance!.simulateJson({ event: 'active_state', state: 'idle' });
+    mockWsInstance!.send.mockClear();
+
+    document.getElementById('btn-cancel')!.click();
+
+    expect(queue.clear).toHaveBeenCalledTimes(1);
+    expect(mockWsInstance!.send).not.toHaveBeenCalled();
+  });
+
+  it('hides cancel when playback naturally becomes inactive and backend is idle', async () => {
+    await connectAndReady(app);
+
+    playbackActiveChanged?.(true);
+    mockWsInstance!.simulateJson({ event: 'active_state', state: 'idle' });
+    playbackActiveChanged?.(false);
+
+    expect(vi.mocked(updateCancelVisibility)).toHaveBeenLastCalledWith('idle', false);
   });
 
   it('close cleanup clears audio and reconnect cleanup allows future audio', async () => {

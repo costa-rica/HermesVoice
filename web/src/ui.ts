@@ -94,6 +94,19 @@ const _CANCELLABLE_STATES: ReadonlySet<TurnState> = new Set([
   'speaking',
 ]);
 
+export function isBackendTurnCancellable(state: TurnState): boolean {
+  return _CANCELLABLE_STATES.has(state);
+}
+
+export function updateCancelVisibility(state: TurnState, assistantPlaybackActive = false): void {
+  const cancelBtn = document.getElementById('btn-cancel') as HTMLButtonElement | null;
+  if (cancelBtn) {
+    cancelBtn.style.display = (
+      isBackendTurnCancellable(state) || assistantPlaybackActive
+    ) ? '' : 'none';
+  }
+}
+
 export function updateTurnState(state: TurnState): void {
   const pill = document.getElementById('turn-state');
   if (pill) {
@@ -118,10 +131,7 @@ export function updateTurnState(state: TurnState): void {
     }
   }
 
-  const cancelBtn = document.getElementById('btn-cancel') as HTMLButtonElement | null;
-  if (cancelBtn) {
-    cancelBtn.style.display = _CANCELLABLE_STATES.has(state) ? '' : 'none';
-  }
+  updateCancelVisibility(state);
 }
 
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;

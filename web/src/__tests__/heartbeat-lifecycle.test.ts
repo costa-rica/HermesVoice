@@ -4,7 +4,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../ui', () => ({
   renderApp: vi.fn(),
+  isBackendTurnCancellable: (state: string) => (
+    state === 'thinking'
+    || state === 'thinking_progress'
+    || state === 'speaking'
+  ),
   updateConnectionState: vi.fn(),
+  updateCancelVisibility: vi.fn(),
   updateTurnState: vi.fn(),
   appendMessage: vi.fn(),
   clearError: vi.fn(),

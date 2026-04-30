@@ -80,6 +80,14 @@ export class AudioQueue {
   private activeSource: AudioBufferSourceNode | null = null;
   private playbackGeneration = 0;
 
+  constructor(private readonly onPlaybackActiveChanged?: (active: boolean) => void) {}
+
+  private setPlaying(active: boolean): void {
+    if (this.playing === active) return;
+    this.playing = active;
+    this.onPlaybackActiveChanged?.(active);
+  }
+
   private getCtx(): AudioContext {
     if (!this.ctx || this.ctx.state === 'closed') {
       this.ctx = new AudioContext();
@@ -97,10 +105,10 @@ export class AudioQueue {
     const generation = this.playbackGeneration;
     const blob = this.queue.shift();
     if (!blob) {
-      if (generation === this.playbackGeneration) this.playing = false;
+      if (generation === this.playbackGeneration) this.setPlaying(false);
       return;
     }
-    this.playing = true;
+    this.setPlaying(true);
     try {
       const ctx = this.getCtx();
       if (ctx.state === 'suspended') await ctx.resume();
@@ -128,7 +136,7 @@ export class AudioQueue {
   clear(): void {
     this.playbackGeneration++;
     this.queue = [];
-    this.playing = false;
+    this.setPlaying(false);
     const source = this.activeSource;
     this.activeSource = null;
     if (!source) return;
