@@ -31,19 +31,35 @@ class Settings(BaseSettings):
     # Login email delivery
     HERMES_VOICE_SMTP_HOST: str = Field(
         "",
-        validation_alias=AliasChoices("HERMES_VOICE_SMTP_HOST", "SMTP_HOST"),
+        validation_alias=AliasChoices(
+            "HERMES_VOICE_SMTP_HOST",
+            "SMTP_HOST",
+            "EMAIL_HOST",
+        ),
     )
     HERMES_VOICE_SMTP_PORT: int = Field(
         587,
-        validation_alias=AliasChoices("HERMES_VOICE_SMTP_PORT", "SMTP_PORT"),
+        validation_alias=AliasChoices(
+            "HERMES_VOICE_SMTP_PORT",
+            "SMTP_PORT",
+            "EMAIL_PORT",
+        ),
     )
     HERMES_VOICE_SMTP_USERNAME: str = Field(
         "",
-        validation_alias=AliasChoices("HERMES_VOICE_SMTP_USERNAME", "SMTP_USERNAME"),
+        validation_alias=AliasChoices(
+            "HERMES_VOICE_SMTP_USERNAME",
+            "SMTP_USERNAME",
+            "EMAIL_USER",
+        ),
     )
     HERMES_VOICE_SMTP_PASSWORD: str = Field(
         "",
-        validation_alias=AliasChoices("HERMES_VOICE_SMTP_PASSWORD", "SMTP_PASSWORD"),
+        validation_alias=AliasChoices(
+            "HERMES_VOICE_SMTP_PASSWORD",
+            "SMTP_PASSWORD",
+            "EMAIL_PASSWORD",
+        ),
     )
     HERMES_VOICE_SMTP_FROM_EMAIL: str = Field(
         "",
@@ -51,6 +67,7 @@ class Settings(BaseSettings):
             "HERMES_VOICE_SMTP_FROM_EMAIL",
             "SMTP_FROM_EMAIL",
             "MAIL_FROM",
+            "EMAIL_FROM",
         ),
     )
     HERMES_VOICE_SMTP_USE_TLS: bool = Field(

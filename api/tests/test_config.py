@@ -67,3 +67,20 @@ def test_timeout_env_overrides(monkeypatch):
     assert settings.HERMES_INTER_TOKEN_TIMEOUT == 33
     assert settings.HERMES_PROGRESS_INTERVAL == 4.5
     assert settings.MIN_UTTERANCE_BYTES == 66
+
+
+def test_email_env_aliases_are_supported(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("EMAIL_HOST", "smtp.example.com")
+    monkeypatch.setenv("EMAIL_PORT", "2525")
+    monkeypatch.setenv("EMAIL_USER", "mailer-user")
+    monkeypatch.setenv("EMAIL_PASSWORD", "mailer-pass")
+    monkeypatch.setenv("EMAIL_FROM", "robot@example.com")
+
+    settings = Settings(_env_file=None, **_settings_kwargs())
+    assert settings.HERMES_VOICE_SMTP_HOST == "smtp.example.com"
+    assert settings.HERMES_VOICE_SMTP_PORT == 2525
+    assert settings.HERMES_VOICE_SMTP_USERNAME == "mailer-user"
+    assert settings.HERMES_VOICE_SMTP_PASSWORD == "mailer-pass"
+    assert settings.HERMES_VOICE_SMTP_FROM_EMAIL == "robot@example.com"
