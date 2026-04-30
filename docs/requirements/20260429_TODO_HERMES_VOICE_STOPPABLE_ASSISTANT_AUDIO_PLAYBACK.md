@@ -101,11 +101,11 @@ For every implementation phase:
 
 ### Phase 1 — AudioQueue can stop active browser playback
 
-- [ ] Create `web/src/__tests__/audio-queue.test.ts`.
-- [ ] Mock `AudioContext`, `decodeAudioData`, `createBufferSource`,
+- [x] Create `web/src/__tests__/audio-queue.test.ts`.
+- [x] Mock `AudioContext`, `decodeAudioData`, `createBufferSource`,
   `connect()`, `start()`, `stop()`, and `onended` so playback behavior is
   deterministic under jsdom.
-- [ ] Write failing tests proving current behavior:
+- [x] Write failing tests proving current behavior:
   - `clear()` empties queued chunks and calls `stop()` on the currently playing
     source.
   - A stopped source's later `onended` callback does not start stale queued
@@ -113,9 +113,9 @@ For every implementation phase:
   - Normal, non-canceled playback still advances from first chunk to second
     chunk when `onended` fires.
   - Decode errors still skip the bad chunk and continue to the next queued chunk.
-- [ ] Run narrow failing test:
+- [x] Run narrow failing test:
   - `cd web && npm test -- --run src/__tests__/audio-queue.test.ts`
-- [ ] Update `web/src/audio.ts`:
+- [x] Update `web/src/audio.ts`:
   - Add an `activeSource` field for the currently started
     `AudioBufferSourceNode`.
   - Add a playback generation/token field so `clear()` invalidates in-flight
@@ -124,7 +124,7 @@ For every implementation phase:
     present, clear `activeSource`, and set `playing = false`.
   - In `_playNext()`, only start or advance playback if the generation still
     matches.
-- [ ] Re-run:
+- [x] Re-run:
   - `cd web && npm test -- --run src/__tests__/audio-queue.test.ts`
   - `cd web && npm test -- --run`
   - `cd web && npm run build`

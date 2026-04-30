@@ -77,6 +77,8 @@ export class AudioQueue {
   private queue: Blob[] = [];
   private playing = false;
   private ctx: AudioContext | null = null;
+  private activeSource: AudioBufferSourceNode | null = null;
+  private playbackGeneration = 0;
 
   private getCtx(): AudioContext {
     if (!this.ctx || this.ctx.state === 'closed') {
@@ -92,26 +94,54 @@ export class AudioQueue {
   }
 
   private async _playNext(): Promise<void> {
+    const generation = this.playbackGeneration;
     const blob = this.queue.shift();
-    if (!blob) { this.playing = false; return; }
+    if (!blob) {
+      if (generation === this.playbackGeneration) this.playing = false;
+      return;
+    }
     this.playing = true;
     try {
       const ctx = this.getCtx();
       if (ctx.state === 'suspended') await ctx.resume();
+      if (generation !== this.playbackGeneration) return;
       const buf = await blob.arrayBuffer();
+      if (generation !== this.playbackGeneration) return;
       const decoded = await ctx.decodeAudioData(buf);
+      if (generation !== this.playbackGeneration) return;
       const src = ctx.createBufferSource();
       src.buffer = decoded;
       src.connect(ctx.destination);
-      src.onended = () => this._playNext();
+      src.onended = () => {
+        if (generation !== this.playbackGeneration || this.activeSource !== src) return;
+        this.activeSource = null;
+        this._playNext();
+      };
+      this.activeSource = src;
       src.start();
     } catch {
       // Decode error — skip this chunk and continue
-      this._playNext();
+      if (generation === this.playbackGeneration) this._playNext();
     }
   }
 
   clear(): void {
+    this.playbackGeneration++;
     this.queue = [];
+    this.playing = false;
+    const source = this.activeSource;
+    this.activeSource = null;
+    if (!source) return;
+
+    try {
+      source.stop();
+    } catch {
+      // Best effort: stop() can throw if the source already ended.
+    }
+    try {
+      source.disconnect();
+    } catch {
+      // Best effort cleanup for browser implementations that throw here.
+    }
   }
 }
