@@ -518,8 +518,8 @@ same `/ws/voice` contract implemented in `web/src/app.ts`, `web/src/ws.ts`,
 
 - Auth/session: support the current backend auth story. Browser web uses
   allowed email + password + emailed verification code + `hv_session` cookie.
-  Mobile may use `Authorization: Bearer <api-key>` for the
-  WebSocket unless a native login flow is explicitly added later.
+  Mobile may authenticate WebSocket requests with the configured API-key header
+  pattern unless a native login flow is explicitly added later.
 - Session readiness: wait for `session_started` with `conversation_id` before
   enabling push-to-talk. A reconnect creates a new session; no resume is
   promised in V1.
