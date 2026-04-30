@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioQueue } from '../audio';
-import { updateTurnState } from '../ui';
+import { updateTimings, updateTurnState } from '../ui';
 
 vi.mock('../ui', () => ({
   renderApp: vi.fn(),
@@ -48,6 +48,7 @@ interface MockWsInstance {
 }
 
 let mockWsInstance: MockWsInstance | null = null;
+let wsConstructionCount = 0;
 
 function makeMockWebSocketClass() {
   class MockWebSocket implements MockWsInstance {
@@ -68,6 +69,7 @@ function makeMockWebSocketClass() {
     });
 
     constructor(_url: string) {
+      wsConstructionCount++;
       mockWsInstance = this;
     }
 
@@ -118,6 +120,7 @@ describe('assistant audio cancel', () => {
     vi.useFakeTimers();
     setupDom();
     mockWsInstance = null;
+    wsConstructionCount = 0;
     vi.stubGlobal('WebSocket', makeMockWebSocketClass());
     app = new App(document.getElementById('app')!);
   });
@@ -154,5 +157,58 @@ describe('assistant audio cancel', () => {
     document.getElementById('btn-cancel')!.click();
 
     expect(vi.mocked(updateTurnState)).toHaveBeenLastCalledWith('idle');
+  });
+
+  it('ignores binary audio frames that arrive after cancel', async () => {
+    await connectAndReady(app);
+    const queue = audioQueueMock();
+
+    document.getElementById('btn-cancel')!.click();
+    vi.mocked(updateTimings).mockClear();
+    queue.enqueue.mockClear();
+
+    mockWsInstance!.simulateBinary();
+
+    expect(queue.enqueue).not.toHaveBeenCalled();
+    expect(vi.mocked(updateTimings)).not.toHaveBeenCalled();
+  });
+
+  it('starting a new recording clears the cancel guard so next audio can play', async () => {
+    await connectAndReady(app);
+    const queue = audioQueueMock();
+
+    document.getElementById('btn-cancel')!.click();
+    queue.enqueue.mockClear();
+
+    document.getElementById('btn-ptt')!.dispatchEvent(new Event('pointerdown'));
+    mockWsInstance!.simulateBinary();
+
+    expect(queue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('close cleanup clears audio and reconnect cleanup allows future audio', async () => {
+    await connectAndReady(app);
+    const queue = audioQueueMock();
+    const countAfterConnect = wsConstructionCount;
+
+    document.getElementById('btn-cancel')!.click();
+    queue.clear.mockClear();
+    queue.enqueue.mockClear();
+
+    mockWsInstance!.onclose?.();
+
+    expect(queue.clear).toHaveBeenCalledTimes(1);
+
+    (app as unknown as { triggerReconnect: () => void }).triggerReconnect();
+    expect(wsConstructionCount).toBeGreaterThan(countAfterConnect);
+
+    mockWsInstance!.simulateOpen();
+    mockWsInstance!.simulateJson({
+      event: 'session_started',
+      conversation_id: 'future-session-id',
+    });
+    mockWsInstance!.simulateBinary();
+
+    expect(queue.enqueue).toHaveBeenCalledTimes(1);
   });
 });

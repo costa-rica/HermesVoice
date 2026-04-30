@@ -125,6 +125,7 @@ export class App {
 
   private handleWsClose(): void {
     this.sessionReady = false;
+    this.suppressAssistantAudio = false;
     this.stopHeartbeat();
     this.setConnState('disconnected');
     this.setBadgeState('offline');
@@ -147,6 +148,7 @@ export class App {
     if (event === 'session_started') {
       this.conversationId = (frame as { conversation_id: string }).conversation_id;
       this.sessionReady = true;
+      this.suppressAssistantAudio = false;
       this.setConnState('connected'); // re-evaluate PTT enabled state
       this.setBadgeState('ready');
       this.setTurnState('idle');
@@ -193,6 +195,8 @@ export class App {
   }
 
   private handleWsBinary(data: ArrayBuffer): void {
+    if (this.suppressAssistantAudio) return;
+
     if (this.timings.firstAudioAt === undefined) {
       this.timings.firstAudioAt = performance.now();
       updateTimings(this.timings);
@@ -218,6 +222,7 @@ export class App {
       this.triggerReconnect();
       return;
     }
+    this.suppressAssistantAudio = false;
     this.isRecording = true;
     this.timings = {};
     this.audioQueue.clear();
@@ -262,6 +267,7 @@ export class App {
 
   private triggerReconnect(): void {
     this.sessionReady = false;
+    this.suppressAssistantAudio = false;
     this.stopHeartbeat();
     this.isRecording = false;
     this.audioQueue.clear();

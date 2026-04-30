@@ -153,7 +153,7 @@ For every implementation phase:
 
 ### Phase 3 — Ignore late audio frames after cancel
 
-- [ ] Extend `web/src/__tests__/assistant-audio-cancel.test.ts` with failing
+- [x] Extend `web/src/__tests__/assistant-audio-cancel.test.ts` with failing
   tests:
   - After cancel, a later binary WebSocket frame does not call
     `AudioQueue.enqueue()`.
@@ -162,9 +162,9 @@ For every implementation phase:
     enqueued normally.
   - Reconnect/close cleanup still clears audio and leaves the app able to accept
     a future session.
-- [ ] Run the narrow tests and confirm expected failures:
+- [x] Run the narrow tests and confirm expected failures:
   - `cd web && npm test -- --run src/__tests__/assistant-audio-cancel.test.ts`
-- [ ] Update `web/src/app.ts`:
+- [x] Update `web/src/app.ts`:
   - Add a private boolean such as `suppressAssistantAudio`.
   - Set it to `true` in `sendCancelTurn()`.
   - In `handleWsBinary()`, return without updating first-audio timings or
@@ -174,7 +174,7 @@ For every implementation phase:
     server events make that unambiguous; prefer `active_state` transitions over
     timing assumptions.
   - Keep `triggerReconnect()` and `handleWsClose()` clearing local playback.
-- [ ] Re-run:
+- [x] Re-run:
   - `cd web && npm test -- --run src/__tests__/assistant-audio-cancel.test.ts`
   - `cd web && npm test -- --run`
   - `cd web && npm run build`
