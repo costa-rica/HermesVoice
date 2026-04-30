@@ -391,24 +391,27 @@ Commit reminder: reference this TODO file and "Phase M3".
 
 Tasks:
 
-- [ ] `AVAudioSession` configuration for record + playback (`.playAndRecord`,
-      `.allowBluetooth` as needed); request mic permission with the iOS 17
-      privacy strings.
-- [ ] PTT capture via `AVAudioEngine` input tap. Encode/transmit per the V04
-      uplink format (unchanged in V06).
-- [ ] Send `start_utterance` / binary capture frames / `end_of_utterance`.
-- [ ] Foreground-only behavior in V1: stop capture cleanly on background;
-      tear down the engine.
+- [x] `AVAudioSession` configuration: `.playAndRecord` / `.voiceChat` /
+      `.allowBluetooth` / `.defaultToSpeaker`. Permission requested via
+      `AVAudioApplication.requestRecordPermission()` (iOS 17 API).
+- [x] PTT capture via `AVAudioEngine` input tap. Real-time resample from
+      hardware rate → 16 kHz int16 mono using `AVAudioConverter`. Accumulated
+      chunks packaged as a minimal RIFF WAV on `stopCapture()`.
+- [x] Uplink sequence: `start_utterance {format:"wav", sample_rate:16000}` →
+      single binary WAV frame → `end_of_utterance`.
+- [x] Foreground-only: `ConversationViewModel.handleBackground()` stops
+      capture and deactivates the session when `scenePhase != .active`.
 
 Tests:
 
 - [ ] Manual capture test on a physical iPhone: speak a sentence, confirm
       backend receives audible bytes (verified via backend log + transcript
-      frame).
+      frame). Requires deployment of current branch to the live backend.
 
 Checks:
 
 - [ ] Permission prompt appears on first use; capture works on device.
+      (Requires physical iPhone — not verifiable on simulator.)
 
 Commit reminder: reference this TODO file and "Phase M4".
 

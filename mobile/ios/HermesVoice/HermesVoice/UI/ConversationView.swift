@@ -4,6 +4,7 @@ struct ConversationView: View {
     let appConfig: AppConfig
 
     @StateObject private var vm: ConversationViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     init(appConfig: AppConfig) {
         self.appConfig = appConfig
@@ -14,6 +15,10 @@ struct ConversationView: View {
         VStack(spacing: 0) {
             connectionBanner
 
+            if vm.micPermissionDenied {
+                micDeniedBanner
+            }
+
             if vm.messages.isEmpty {
                 Spacer()
                 Text("Hold the button and speak to start a conversation.")
@@ -23,25 +28,14 @@ struct ConversationView: View {
                     .padding(.horizontal, 32)
                 Spacer()
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(vm.messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
-                            }
-                        }
-                        .padding()
-                    }
-                    .onChange(of: vm.messages.count) { _, _ in
-                        if let last = vm.messages.last {
-                            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                        }
-                    }
-                }
+                messageList
             }
 
             ActiveStateBar(state: vm.activeState)
+
+            pttButton
+                .padding(.bottom, 32)
+                .padding(.top, 16)
         }
         .navigationTitle("HermesVoice")
         .task {
@@ -50,34 +44,105 @@ struct ConversationView: View {
         .onDisappear {
             vm.disconnect()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                Task { await vm.handleBackground() }
+            }
+        }
     }
+
+    // MARK: - Message list
+
+    private var messageList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(vm.messages) { message in
+                        MessageBubble(message: message)
+                            .id(message.id)
+                    }
+                }
+                .padding()
+            }
+            .onChange(of: vm.messages.count) { _, _ in
+                if let last = vm.messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+        }
+    }
+
+    // MARK: - PTT button
+
+    private var pttButton: some View {
+        ZStack {
+            Circle()
+                .fill(pttColor)
+                .frame(width: 80, height: 80)
+                .shadow(color: pttColor.opacity(0.4), radius: vm.isCapturing ? 12 : 4)
+
+            Image(systemName: vm.isCapturing ? "waveform" : "mic.fill")
+                .font(.title)
+                .foregroundStyle(.white)
+        }
+        .animation(.easeInOut(duration: 0.15), value: vm.isCapturing)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !vm.isCapturing {
+                        Task { await vm.startPTT() }
+                    }
+                }
+                .onEnded { _ in
+                    Task { await vm.stopPTT() }
+                }
+        )
+        .disabled(vm.socket.connectionState != .connected)
+        .opacity(vm.socket.connectionState == .connected ? 1 : 0.4)
+        .accessibilityLabel(vm.isCapturing ? "Recording — release to send" : "Hold to talk")
+    }
+
+    private var pttColor: Color {
+        vm.isCapturing ? .red : .accentColor
+    }
+
+    // MARK: - Banners
 
     private var connectionBanner: some View {
         Group {
             switch vm.socket.connectionState {
             case .connecting:
-                banner("Connecting…", color: .orange)
+                banner("Connecting…", icon: "wifi", color: .orange)
             case .failed:
-                banner("Connection failed — check your network", color: .red)
+                banner("Connection failed — tap to retry", icon: "wifi.slash", color: .red)
             case .authFailed:
-                banner("Authentication failed — please sign in again", color: .red)
+                banner("Session expired — please sign in again", icon: "lock.slash", color: .red)
             case .disconnected:
-                banner("Disconnected", color: .secondary)
+                banner("Disconnected", icon: "wifi.slash", color: .secondary)
             case .connected:
                 EmptyView()
             }
         }
     }
 
-    private func banner(_ text: String, color: Color) -> some View {
+    private var micDeniedBanner: some View {
+        banner(
+            "Microphone access denied — enable in Settings",
+            icon: "mic.slash",
+            color: .red
+        )
+    }
+
+    private func banner(_ text: String, icon: String, color: Color) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "wifi.slash")
+            Image(systemName: icon)
             Text(text).font(.footnote)
+            Spacer()
         }
         .foregroundStyle(color)
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal)
         .padding(.vertical, 6)
-        .background(color.opacity(0.08))
+        .background(color.opacity(0.1))
     }
 }
 
@@ -100,7 +165,7 @@ private struct MessageBubble: View {
     }
 }
 
-// MARK: - Active-state indicator
+// MARK: - Active-state bar
 
 private struct ActiveStateBar: View {
     let state: ActiveState
@@ -108,11 +173,8 @@ private struct ActiveStateBar: View {
     var body: some View {
         if state != .idle {
             HStack(spacing: 8) {
-                ProgressView()
-                    .scaleEffect(0.8)
-                Text(stateLabel)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                ProgressView().scaleEffect(0.8)
+                Text(label).font(.footnote).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -120,14 +182,14 @@ private struct ActiveStateBar: View {
         }
     }
 
-    private var stateLabel: String {
+    private var label: String {
         switch state {
-        case .idle:              return ""
-        case .listening:         return "Listening…"
-        case .thinking:          return "Thinking…"
-        case .thinkingProgress:  return "Thinking…"
-        case .speaking:          return "Speaking…"
-        case .awaitingApproval:  return "Awaiting approval…"
+        case .idle:             return ""
+        case .listening:        return "Listening…"
+        case .thinking,
+             .thinkingProgress: return "Thinking…"
+        case .speaking:         return "Speaking…"
+        case .awaitingApproval: return "Awaiting approval…"
         }
     }
 }
