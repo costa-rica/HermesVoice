@@ -114,8 +114,9 @@ HermesVoice/
 │   ├── package.json
 │   └── README.md
 │
-├── mobile/                           # Native Swift iOS app, built later on Mac
-│   └── README.md                     # Placeholder until mobile phase
+├── mobile/
+│   └── ios/
+│       └── HermesVoice/              # Native Swift/SwiftUI iOS app project
 │
 ├── scripts/
 │   ├── smoke_responses_stream.py
@@ -363,10 +364,23 @@ JSON status frames:
 
 - `session_started`
 - `transcript`
+- `assistant_text`
+- `active_state`
 - `turn_started`
 - `turn_completed`
 - `turn_end`
+- `voice_turn_skipped`
+- `pong`
 - `error`
+
+Current `active_state` values are:
+
+- `idle`
+- `listening`
+- `thinking`
+- `thinking_progress`
+- `speaking`
+- `awaiting_approval`
 
 Binary frames:
 
@@ -412,19 +426,29 @@ Browser microphone capture requires a secure context:
 
 ### Required behavior
 
-- Login form protected by `HERMES_VOICE_WEB_PASSWORD`.
-- Browser session cookie after successful login.
+- Login form protected by allowed email + `HERMES_VOICE_WEB_PASSWORD`, followed
+  by emailed numeric verification code.
+- Browser session cookie after successful verification.
 - Push-to-talk or record/release control.
 - WebSocket connection state.
 - Microphone capture using browser APIs.
 - Send `start_utterance` metadata before audio bytes.
-- Transcript display.
+- Transcript display and chat bubbles for user and Hermes messages.
 - Audio playback for backend TTS bytes.
-- Turn state: idle, recording, transcribing, Hermes thinking, speaking, error.
+- `assistant_text` rendering for final Hermes text.
+- Turn state: idle, recording/listening, transcribing, Hermes thinking,
+  still-thinking progress, speaking, awaiting approval, error.
+- Cancel control for thinking, still-thinking, speaking, and active assistant
+  playback.
+- Audio-too-short feedback when the backend sends `voice_turn_skipped`.
 - Latency timings for STT, Hermes first text, first audio, and full turn.
 - Clear display of standardized backend errors.
-- Reconnect behavior for V1: show disconnected state and start a fresh session
-  after reconnect.
+- Readiness-gated PTT: do not enable voice capture until `session_started`
+  confirms the socket session is ready.
+- Manual check/reconnect control that sends `ping`, expects `pong`, and forces
+  reconnect on timeout.
+- Heartbeat/lifecycle recovery for stale sockets. Reconnect behavior for V1:
+  show offline/checking state and start a fresh session after reconnect.
 
 ### Audio format
 
@@ -440,7 +464,10 @@ decision.
 Before exposing the web app publicly:
 
 - Rate-limit `/login`.
+- Rate-limit `/login/verify`.
 - Lock out repeated failures per IP for a short window.
+- Allow only configured web login emails.
+- Send one-time verification codes by email after password acceptance.
 - Set session cookie flags: `HttpOnly`, `Secure`, `SameSite=Lax`.
 - Use a strong random `SESSION_SECRET`.
 - Consider temporary Nginx basic auth or an unguessable path prefix as
@@ -448,27 +475,143 @@ Before exposing the web app publicly:
 
 ---
 
-## Mobile App (`mobile/`) - Later Phase
+## Mobile App (`mobile/ios/HermesVoice`) - Native Swift First
 
-The native Swift iOS app is intentionally deferred until the backend and web harness are
-proven on Ubuntu. If any old legacy Flutter/Dart references appear in historical
-notes, ignore them as stale relics; native Swift/iOS is the selected mobile
-technology for current planning and implementation.
+**Last mobile-plan review:** 2026-04-30 Pacific.
+
+The native Swift iOS app is intentionally deferred until the backend and web
+harness are proven on Ubuntu. If any old Flutter/Dart or React Native references
+appear in historical notes, treat them as superseded unless a later decision
+explicitly reopens that choice.
+
+Native Swift/SwiftUI is the selected first mobile implementation because this is
+a voice-first, pocketable iPhone app whose product risk sits in iOS audio
+session behavior, lock-screen constraints, headset/Bluetooth controls, low
+latency playback, and Apple permission/entitlement behavior. Those are native
+iOS surfaces. Flutter and React Native remain secondary options only if the app
+later needs broad cross-platform UI reuse; they should not be used to validate
+the first iPhone voice experience.
+
+The mobile code stays in this repo under `mobile/ios/HermesVoice/` (or the
+nearest Xcode-generated equivalent inside `mobile/ios/`). Do not create a
+separate repository for the first iOS app unless repo ownership changes.
 
 ### Build environment
 
-- Built on a Mac with Xcode.
-- Tested on a physical iPhone.
+- Ubuntu can write, review, commit, and push Swift, SwiftUI, Xcode project
+  files, docs, and non-Xcode text changes.
+- Ubuntu cannot validate Xcode build settings, iOS Simulator behavior, SwiftUI
+  previews, code signing, provisioning profiles, entitlements, background audio,
+  lock-screen behavior, Control Center behavior, or headset/Bluetooth media
+  controls.
+- Final mobile validation belongs on Nick's MacBook Air with current Xcode and,
+  before release, a physical iPhone.
 - Uses the same backend URL and WebSocket contract proven by the web client.
 
-### Expected V1 behavior
+### Parity before mobile-only improvements
+
+The iOS app must first match the current web app/backend behavior. Do not add
+mobile-only interaction modes until this parity checklist passes against the
+same `/ws/voice` contract implemented in `web/src/app.ts`, `web/src/ws.ts`,
+`web/src/types.ts`, `web/src/ui.ts`, `api/app/routes/voice.py`,
+`api/app/routes/web.py`, `api/app/auth.py`, and `api/app/services/pipeline.py`.
+
+- Auth/session: support the current backend auth story. Browser web uses
+  allowed email + password + emailed verification code + `hv_session` cookie.
+  Mobile may use `Authorization: Bearer <HERMES_VOICE_API_KEY>` for the
+  WebSocket unless a native login flow is explicitly added later.
+- Session readiness: wait for `session_started` with `conversation_id` before
+  enabling push-to-talk. A reconnect creates a new session; no resume is
+  promised in V1.
+- Connection UX: expose Ready, Checking, and Offline-equivalent states; provide
+  manual check/reconnect; send `ping` and require matching `pong`; reconnect on
+  timeout or closed socket.
+- Lifecycle recovery: treat foreground/resume as a reason to verify socket
+  health, but avoid false reconnect loops caused by background timer throttling.
+- Push-to-talk: press starts capture only from idle/ready; release stops
+  capture, sends `start_utterance`, binary audio, and `end_of_utterance`.
+- Audio metadata: send accepted format and sample rate before bytes. Mobile V1
+  target remains `format="wav"` with 16 kHz, 16-bit, mono audio unless measured
+  network results justify `ogg/opus`.
+- Turn states: render `active_state` frames for `idle`, `listening`,
+  `thinking`, `thinking_progress`, `speaking`, and `awaiting_approval`. The
+  `thinking_progress` state is current behavior and should show non-error
+  still-thinking feedback.
+- Chat transcript: render user bubbles from `transcript` frames and Hermes
+  bubbles from final `assistant_text` frames.
+- Assistant audio: play binary TTS frames in order; clear queued/current
+  playback when a cancel or reconnect occurs; ignore late audio from a canceled
+  turn until the next valid turn starts.
+- Cancel/interrupt: while thinking, still-thinking, speaking, or playing
+  assistant audio, provide cancel. Send `{"event":"cancel_turn"}` when the
+  backend turn is cancellable, optimistically return local UI to idle, and
+  accept backend confirmation via `active_state=idle` and `turn_end`.
+- Too-short audio: handle `voice_turn_skipped` with
+  `reason="audio_too_short"` by showing visible "hold longer" feedback and
+  returning to idle.
+- Errors: render standardized `error` frames with code, message, and status;
+  keep the socket path recoverable where possible.
+- Compatibility: safely ignore unknown future JSON frames.
+
+### Expected V1 iOS behavior
 
 - Push-to-talk capture.
 - Send `start_utterance` with `format="wav"` before audio bytes.
 - 16 kHz, 16-bit, mono WAV uplink.
 - Opus playback from backend TTS.
 - Transcript and turn status display.
-- Background audio handling through native iOS audio session APIs.
+- Background/lock-screen playback through native iOS audio session APIs where
+  Apple permits it.
+
+### Mobile-only constraints and realistic options
+
+- Pocket mode should be explicit, such as a large locked-screen-friendly PTT
+  surface while the app is foregrounded, plus strong haptics/audio cues. Do not
+  assume screen-off microphone capture is available.
+- Headset/Bluetooth controls can be mapped to supported remote-control events
+  where iOS exposes them, but behavior varies by device and app audio session.
+- Audio routing must use native `AVAudioSession` category/mode/options and be
+  validated with built-in speaker, wired headset if available, AirPods, and at
+  least one Bluetooth device.
+- Always-listening and wake-word behavior are not V1 assumptions. Safe
+  alternatives are foreground PTT, an explicit "keep awake while pocket mode is
+  active" setting, lock-screen playback controls for assistant audio, Shortcuts
+  integration, or a manual Action Button/Siri Shortcut entry point if feasible.
+- Background audio may allow playback continuity, but it does not grant a
+  general always-on microphone. Treat entitlements and App Review constraints as
+  product constraints, not implementation details.
+
+### Nick's MacBook Air / Xcode validation checklist
+
+After pulling the branch on the MacBook Air:
+
+1. `git status --short --branch` and confirm the branch is the expected mobile
+   work branch.
+2. Open `mobile/ios/HermesVoice/` in Xcode, or open the generated
+   `HermesVoice.xcodeproj` / `HermesVoice.xcworkspace` if present.
+3. Select the HermesVoice app scheme and a current iOS Simulator target.
+4. Resolve any Xcode-reported package/project migration prompts deliberately;
+   commit resulting project-file changes only if they are expected.
+5. Build with `Product > Build`.
+6. Run in Simulator and verify launch, microphone permission prompt, network
+   permission behavior if prompted, and basic UI layout.
+7. Configure the backend URL/API-key mechanism without committing secrets.
+8. Connect to `/ws/voice`; verify `session_started` arrives before PTT enables.
+9. Perform one normal PTT turn: press, speak, release; verify transcript bubble,
+   `thinking`, optional `thinking_progress`, audio playback, final
+   `assistant_text` bubble, and idle return.
+10. Test manual check/reconnect by disabling network or stopping the backend,
+    then restoring it; verify Checking/Offline/Ready states and a new session.
+11. Test cancel during thinking and during assistant playback; verify local
+    playback stops and late audio is ignored.
+12. Test an intentionally tiny tap; verify audio-too-short feedback and idle
+    recovery.
+13. Test lock-screen/background behavior on a physical iPhone: assistant audio
+    playback, interruption by phone call/Siri, route changes, and return to app.
+14. Test AirPods or another Bluetooth headset for recording route, playback
+    route, and any available remote-control behavior.
+15. Confirm signing team, bundle id, entitlements, and provisioning profile are
+    valid before any TestFlight or device-distribution step.
 
 ---
 
@@ -564,6 +707,11 @@ is a specific operational reason.
 ### Phase 8 - Native Swift iOS app on Mac
 
 - Build the mobile app against the proven backend contract.
+- Keep source under `mobile/ios/HermesVoice/`.
+- Complete web/backend parity before pocket-mode, headset, or other mobile-only
+  improvements.
+- Validate Xcode, Simulator, signing, entitlements, background audio, and
+  lock-screen behavior on Nick's MacBook Air with Xcode.
 
 ### Phase 9 - V1 reassessment
 
@@ -579,15 +727,18 @@ is a specific operational reason.
 - **Backend state:** no transcript/history persistence in V1.
 - **Initial deployed UI:** web client on Ubuntu.
 - **Web stack:** vanilla TypeScript + Vite.
-- **Mobile app:** later, built on Mac.
+- **Mobile app:** native Swift/SwiftUI first, under `mobile/ios/HermesVoice/`,
+  built and finally validated on Mac.
 - **Mobile V1 uplink:** WAV.
 - **Browser uplink:** declared per turn; likely `webm/opus`.
 - **Compressed uplink option:** `OGG(Opus)`, not raw `.opus`.
 - **Downlink:** Opus TTS audio.
-- **Interrupt policy:** ignore user barge-in during V1, cancel on disconnect or
-  `new_session`.
+- **Interrupt policy:** ignore extra inbound audio while a turn is active;
+  explicit cancel uses `cancel_turn`, and disconnect or `new_session` cancels
+  active work.
 - **Reconnect policy:** reconnect starts a new session in V1.
-- **Auth:** web password for browser UI, API key for later mobile/backend access.
+- **Auth:** allowed email + web password + emailed verification code for browser
+  UI; API key for later mobile/backend access unless native login is added.
 
 ---
 
