@@ -39,6 +39,10 @@ _WEB_DEFAULT_DOWNLINK = _SUPPORTED_DOWNLINKS["opus_ogg"]
 
 def _check_origin(websocket: WebSocket) -> bool:
     origin = websocket.headers.get("origin", "")
+    # Native mobile clients (iOS/Android) don't send Origin; browsers always do.
+    # Allowing empty-origin requests preserves CSRF protection for browser clients.
+    if not origin:
+        return True
     if settings.RUN_ENVIRONMENT == "production":
         return origin in _PRODUCTION_ORIGINS
     return True
