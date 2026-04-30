@@ -6,6 +6,7 @@ import os
 os.environ.setdefault("NAME_APP", "hermes_voice_api_test")
 os.environ.setdefault("RUN_ENVIRONMENT", "development")
 os.environ.setdefault("HERMES_VOICE_WEB_PASSWORD", "test-password")
+os.environ.setdefault("HERMES_VOICE_WEB_EMAILS", "allowed@example.com")
 os.environ.setdefault("HERMES_VOICE_API_KEY", "test-api-key")
 os.environ.setdefault("SESSION_SECRET", "test-session-secret-at-least-32-chars-long")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-placeholder")

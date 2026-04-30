@@ -8,6 +8,7 @@ def _settings_kwargs() -> dict[str, str]:
         "NAME_APP": "hermes_voice_api_test",
         "RUN_ENVIRONMENT": "development",
         "HERMES_VOICE_WEB_PASSWORD": "test-password",
+        "HERMES_VOICE_WEB_EMAILS": "allowed@example.com",
         "HERMES_VOICE_API_KEY": "test-api-key",
         "SESSION_SECRET": "test-session-secret-at-least-32-chars-long",
         "OPENAI_API_KEY": "sk-test-placeholder",
@@ -25,6 +26,7 @@ def test_settings_load_successfully():
 def test_settings_has_required_fields():
     from app.config import settings
     assert settings.HERMES_VOICE_WEB_PASSWORD
+    assert settings.HERMES_VOICE_WEB_EMAILS
     assert settings.SESSION_SECRET
     assert settings.OPENAI_API_KEY
     assert settings.HERMES_BASE_URL
@@ -46,6 +48,8 @@ def test_settings_defaults():
     assert settings.MIN_UTTERANCE_BYTES == 50
     assert settings.TTS_REQUEST_TIMEOUT == 45
     assert settings.IDLE_TIMEOUT == 120
+    assert settings.LOGIN_CODE_TTL_SECONDS == 600
+    assert settings.LOGIN_CODE_LENGTH == 6
 
 
 def test_timeout_env_overrides(monkeypatch):

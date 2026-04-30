@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 
 
 _VALID_ENVIRONMENTS = {"development", "testing", "production"}
@@ -22,8 +22,41 @@ class Settings(BaseSettings):
 
     # Auth
     HERMES_VOICE_WEB_PASSWORD: str
+    HERMES_VOICE_WEB_EMAILS: str
     HERMES_VOICE_API_KEY: str
     SESSION_SECRET: str
+    LOGIN_CODE_TTL_SECONDS: int = 10 * 60
+    LOGIN_CODE_LENGTH: int = 6
+
+    # Login email delivery
+    HERMES_VOICE_SMTP_HOST: str = Field(
+        "",
+        validation_alias=AliasChoices("HERMES_VOICE_SMTP_HOST", "SMTP_HOST"),
+    )
+    HERMES_VOICE_SMTP_PORT: int = Field(
+        587,
+        validation_alias=AliasChoices("HERMES_VOICE_SMTP_PORT", "SMTP_PORT"),
+    )
+    HERMES_VOICE_SMTP_USERNAME: str = Field(
+        "",
+        validation_alias=AliasChoices("HERMES_VOICE_SMTP_USERNAME", "SMTP_USERNAME"),
+    )
+    HERMES_VOICE_SMTP_PASSWORD: str = Field(
+        "",
+        validation_alias=AliasChoices("HERMES_VOICE_SMTP_PASSWORD", "SMTP_PASSWORD"),
+    )
+    HERMES_VOICE_SMTP_FROM_EMAIL: str = Field(
+        "",
+        validation_alias=AliasChoices(
+            "HERMES_VOICE_SMTP_FROM_EMAIL",
+            "SMTP_FROM_EMAIL",
+            "MAIL_FROM",
+        ),
+    )
+    HERMES_VOICE_SMTP_USE_TLS: bool = Field(
+        True,
+        validation_alias=AliasChoices("HERMES_VOICE_SMTP_USE_TLS", "SMTP_USE_TLS"),
+    )
 
     # OpenAI
     OPENAI_API_KEY: str

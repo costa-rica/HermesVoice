@@ -31,6 +31,10 @@ chmod 640 /home/limited_user/applications/HermesVoice/api/.env
 Required production values to rotate from dev defaults:
 - `SESSION_SECRET` — generate with `openssl rand -hex 32`
 - `HERMES_VOICE_WEB_PASSWORD` — choose a strong password
+- `HERMES_VOICE_WEB_EMAILS` — comma-separated allowed login email addresses
+- `HERMES_VOICE_SMTP_HOST`, `HERMES_VOICE_SMTP_PORT`,
+  `HERMES_VOICE_SMTP_USERNAME`, `HERMES_VOICE_SMTP_PASSWORD`,
+  `HERMES_VOICE_SMTP_FROM_EMAIL` — SMTP settings for login verification codes
 - `HERMES_VOICE_API_KEY` — generate with `openssl rand -hex 32`
 - `OPENAI_API_KEY` — real OpenAI key (placeholder causes STT 401 errors)
 - `HERMES_API_KEY` — from `~/.hermes/.env` API_SERVER_KEY

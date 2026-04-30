@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
+from dataclasses import dataclass
+import hmac
+import secrets
+import string
 from typing import Optional
 
 from fastapi import Request, Response, WebSocket
@@ -18,6 +22,22 @@ _SESSION_COOKIE = "hv_session"
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 _LOGIN_RATE_WINDOW = 60.0
 _LOGIN_MAX_ATTEMPTS = 5
+
+_verification_attempts: dict[str, list[float]] = defaultdict(list)
+_VERIFICATION_RATE_WINDOW = 60.0
+_VERIFICATION_MAX_ATTEMPTS = 6
+
+
+@dataclass(frozen=True)
+class LoginChallenge:
+    email: str
+    code: str
+    expires_at: float
+
+
+# Login challenges are intentionally in-memory; a service restart clears pending
+# codes, while established session cookies continue to use the signed cookie.
+_pending_challenges: dict[str, LoginChallenge] = {}
 
 
 def _is_production() -> bool:
@@ -86,13 +106,89 @@ def verify_api_key_ws(websocket: WebSocket) -> bool:
     return False
 
 
-def check_rate_limit(ip: str) -> tuple[bool, Optional[float]]:
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def get_allowed_web_emails() -> set[str]:
+    return {
+        normalized
+        for raw in settings.HERMES_VOICE_WEB_EMAILS.split(",")
+        if (normalized := normalize_email(raw))
+    }
+
+
+def is_allowed_web_email(email: str) -> bool:
+    return normalize_email(email) in get_allowed_web_emails()
+
+
+def _check_bucket_rate_limit(
+    bucket: dict[str, list[float]],
+    key: str,
+    *,
+    window: float,
+    max_attempts: int,
+) -> tuple[bool, Optional[float]]:
     now = time.monotonic()
-    window_start = now - _LOGIN_RATE_WINDOW
-    attempts = _login_attempts[ip]
-    _login_attempts[ip] = [t for t in attempts if t > window_start]
-    if len(_login_attempts[ip]) >= _LOGIN_MAX_ATTEMPTS:
-        retry_after = _login_attempts[ip][0] + _LOGIN_RATE_WINDOW - now
+    window_start = now - window
+    attempts = bucket[key]
+    bucket[key] = [t for t in attempts if t > window_start]
+    if len(bucket[key]) >= max_attempts:
+        retry_after = bucket[key][0] + window - now
         return False, max(retry_after, 0.0)
-    _login_attempts[ip].append(now)
+    bucket[key].append(now)
     return True, None
+
+
+def check_rate_limit(ip: str) -> tuple[bool, Optional[float]]:
+    return _check_bucket_rate_limit(
+        _login_attempts,
+        ip,
+        window=_LOGIN_RATE_WINDOW,
+        max_attempts=_LOGIN_MAX_ATTEMPTS,
+    )
+
+
+def check_verification_rate_limit(key: str) -> tuple[bool, Optional[float]]:
+    return _check_bucket_rate_limit(
+        _verification_attempts,
+        key,
+        window=_VERIFICATION_RATE_WINDOW,
+        max_attempts=_VERIFICATION_MAX_ATTEMPTS,
+    )
+
+
+def _generate_code() -> str:
+    digits = string.digits
+    return "".join(secrets.choice(digits) for _ in range(settings.LOGIN_CODE_LENGTH))
+
+
+def create_login_challenge(email: str, now: float | None = None) -> tuple[str, str]:
+    now = time.monotonic() if now is None else now
+    normalized_email = normalize_email(email)
+    challenge_id = secrets.token_urlsafe(32)
+    code = _generate_code()
+    _pending_challenges[challenge_id] = LoginChallenge(
+        email=normalized_email,
+        code=code,
+        expires_at=now + settings.LOGIN_CODE_TTL_SECONDS,
+    )
+    return challenge_id, code
+
+
+def verify_login_challenge(
+    challenge_id: str,
+    code: str,
+    now: float | None = None,
+) -> bool:
+    now = time.monotonic() if now is None else now
+    challenge = _pending_challenges.get(challenge_id)
+    if challenge is None:
+        return False
+    if challenge.expires_at < now:
+        _pending_challenges.pop(challenge_id, None)
+        return False
+    if not hmac.compare_digest(challenge.code, code.strip()):
+        return False
+    _pending_challenges.pop(challenge_id, None)
+    return True

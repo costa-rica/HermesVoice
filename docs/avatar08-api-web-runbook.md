@@ -42,6 +42,12 @@ HERMES_MODEL=hermes-agent
 
 # secret values, stored only in api/.env
 HERMES_VOICE_WEB_PASSWORD=<strong-password>
+HERMES_VOICE_WEB_EMAILS=<allowed-login-email>
+HERMES_VOICE_SMTP_HOST=<smtp-host>
+HERMES_VOICE_SMTP_PORT=587
+HERMES_VOICE_SMTP_USERNAME=<smtp-username>
+HERMES_VOICE_SMTP_PASSWORD=<smtp-password>
+HERMES_VOICE_SMTP_FROM_EMAIL=<from-address>
 HERMES_VOICE_API_KEY=<generated-token>
 SESSION_SECRET=<generated-token>
 OPENAI_API_KEY=<valid-openai-key>
@@ -51,6 +57,7 @@ HERMES_API_KEY=<avatar08-hermes-api-server-key>
 Important notes:
 
 - `RUN_ENVIRONMENT=production` is required for file logging. When the app was left in `development`, TheServerManager could not find `/home/limited_user/logs/hermes_voice_api.log` because the app only logged to stderr.
+- Browser login requires an allowed email address, the web password, and the emailed verification code. `HERMES_VOICE_WEB_EMAILS` may contain one address or multiple comma-separated addresses.
 - `OPENAI_API_KEY` must be a real key. A placeholder key allows login/WebSocket connection but fails during STT with `401 invalid_api_key` and the browser shows `[INTERNAL_ERROR] Voice turn failed`.
 - Keep `.env` owned/readable by `limited_user`, for example:
 

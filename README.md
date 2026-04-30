@@ -49,7 +49,8 @@ pip install -r api/requirements.txt
 # 2. Copy and edit environment file
 cp api/.env.example api/.env
 chmod 600 api/.env
-# Fill in OPENAI_API_KEY, SESSION_SECRET, HERMES_VOICE_WEB_PASSWORD, etc.
+# Fill in OPENAI_API_KEY, SESSION_SECRET, HERMES_VOICE_WEB_PASSWORD,
+# HERMES_VOICE_WEB_EMAILS, SMTP settings, etc.
 
 # 3. Start development server
 cd api
