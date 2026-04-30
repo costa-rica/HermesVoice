@@ -25,6 +25,7 @@ export class App {
   private turnState: TurnState = 'idle';
   private timings: LatencyTimings = {};
   private isRecording = false;
+  private suppressAssistantAudio = false;
   private conversationId = '';
   private messages: ChatMessage[] = [];
 
@@ -251,6 +252,8 @@ export class App {
 
   private sendCancelTurn(): void {
     this.ws.sendJson({ event: 'cancel_turn' });
+    this.audioQueue.clear();
+    this.suppressAssistantAudio = true;
     // Optimistically reset local turn state — server will confirm with active_state=idle
     this.setTurnState('idle');
   }

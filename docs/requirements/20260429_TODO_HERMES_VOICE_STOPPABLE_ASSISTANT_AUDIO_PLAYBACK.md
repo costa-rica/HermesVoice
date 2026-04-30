@@ -131,22 +131,22 @@ For every implementation phase:
 
 ### Phase 2 — Cancel button stops local playback immediately
 
-- [ ] Create `web/src/__tests__/assistant-audio-cancel.test.ts`.
-- [ ] Reuse the existing app test style: mock `../ui`, mock `../audio`, and use
+- [x] Create `web/src/__tests__/assistant-audio-cancel.test.ts`.
+- [x] Reuse the existing app test style: mock `../ui`, mock `../audio`, and use
   a controllable `WebSocket` test double.
-- [ ] Write failing tests proving current behavior:
+- [x] Write failing tests proving current behavior:
   - Clicking `#btn-cancel` sends one `cancel_turn` JSON frame.
   - Clicking `#btn-cancel` calls `AudioQueue.clear()` immediately, even before
     any server `active_state=idle` confirmation.
   - The local turn state is optimistically set back to `idle`.
-- [ ] Run narrow failing test:
+- [x] Run narrow failing test:
   - `cd web && npm test -- --run src/__tests__/assistant-audio-cancel.test.ts`
-- [ ] Update `web/src/app.ts` `sendCancelTurn()`:
+- [x] Update `web/src/app.ts` `sendCancelTurn()`:
   - Keep the existing WebSocket `cancel_turn` send.
   - Call `this.audioQueue.clear()` before or immediately after sending cancel.
   - Set a local audio-canceled guard used by Phase 3.
   - Preserve the optimistic `setTurnState('idle')`.
-- [ ] Re-run:
+- [x] Re-run:
   - `cd web && npm test -- --run src/__tests__/assistant-audio-cancel.test.ts`
   - `cd web && npm test -- --run`
   - `cd web && npm run build`
