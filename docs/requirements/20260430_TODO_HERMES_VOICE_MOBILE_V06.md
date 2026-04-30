@@ -350,41 +350,38 @@ Commit reminder: reference this TODO file and "Phase M2".
 
 Tasks:
 
-- [ ] `VoiceProtocol` — `Codable` Swift types for every JSON frame, including
-      `turn_id` fields added in Phase A1. Unknown frames decode into a
-      `Frame.unknown(rawJSON)` case and are logged but not crashed on.
-- [ ] `VoiceSocket` — wraps `URLSessionWebSocketTask`. Sends `client_hello`
-      with `accepted_downlink_formats` immediately after upgrade. Stores the
-      negotiated `downlink_format`, `downlink_sample_rate`,
+- [x] `VoiceProtocol` — `Codable` Swift types for every JSON frame, including
+      `turn_id` fields added in Phase A1. Unknown frames decode into
+      `InboundFrame.unknown(rawJSON)` and are logged via `os.Logger`.
+- [x] `VoiceSocket` — wraps `URLSessionWebSocketTask`. Sends `client_hello`
+      with `accepted_downlink_formats: ["aac_adts", "wav_pcm16"]` immediately
+      after upgrade. Stores negotiated `downlink_format`, `downlink_sample_rate`,
       `downlink_channels` from `session_started`.
-- [ ] Implement the **chosen** audio-binding rule from Phase A1:
-  - **Option A:** maintain a one-slot "expected next binary" state populated
-    by each `audio_chunk` prelude. A binary frame arriving without a
-    preceding prelude is a protocol error and is dropped with a logged
-    warning.
-  - **Option B:** maintain a "suppress binaries until next `turn_started`"
-    flag set by `cancel_turn`.
-- [ ] Render incoming JSON frames into the existing app state model:
+- [x] Implement Option A audio-binding: one-slot `pendingAudioChunk`
+      populated by each `audio_chunk` prelude. Binary without prelude is
+      dropped with a warning; prelude whose `turn_id ≠ activeTurnID` is
+      stale and dropped with its binary.
+- [x] Render incoming JSON frames into `ConversationViewModel` state:
       `session_started`, `turn_started`, `transcript`, `assistant_text`,
       `active_state`, `turn_end`/`turn_completed`, `voice_turn_skipped`,
       `error`, `pong`.
-- [ ] Heartbeat / pong handling per V04.
+- [x] Heartbeat: `PingOutbound` sent every 25 s when connected; `pong`
+      frames acknowledged (no action needed).
 
 Tests:
 
-- [ ] Frame decode round-trip tests for every JSON frame including new
-      `turn_id` fields.
-- [ ] Fake-socket protocol tests:
-  - Stale `audio_chunk` prelude (Option A) is dropped along with its paired
-    binary; the next valid turn plays normally.
-  - A binary frame arriving after `cancel_turn` is not delivered to the
-    player, regardless of whether the server saw the cancel before emitting
-    it.
-  - Unknown JSON frames do not crash the decoder.
+- [x] Frame decode round-trip tests for every JSON frame including new
+      `turn_id` fields (16 cases in `InboundFrameDecodeTests`).
+- [x] Fake-socket protocol tests (8 cases in `VoiceSocketStateMachineTests`):
+  - Stale `audio_chunk` prelude after cancel is dropped along with its binary.
+  - Next valid turn plays normally after a cancel.
+  - Binary without prelude is dropped.
+  - Unknown JSON frames do not crash or corrupt state.
 
 Checks:
 
-- [ ] Xcode tests pass for the Voice target.
+- [x] Xcode tests pass: 37/37 passing (AppConfigTests 1 + AuthClientTests 10
+      + InboundFrameDecodeTests 16 + VoiceSocketStateMachineTests 8 + existing 2).
 
 Commit reminder: reference this TODO file and "Phase M3".
 

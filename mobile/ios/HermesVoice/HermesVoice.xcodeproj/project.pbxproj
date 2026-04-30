@@ -23,6 +23,7 @@
 		A0AFAF7833890385116DF13B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140A1CB9247908A2F3F35CE7 /* LoginView.swift */; };
 		A96548977A70311EFDD9BC99 /* DeveloperSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD5E9AEA39A1D869160C8F2 /* DeveloperSettingsStore.swift */; };
 		B3BC31CC4B4D6422EB96EBAB /* AudioPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E8144F85A0D5A957A1994D /* AudioPlayback.swift */; };
+		C56CBB107BABB1EDEBAD6B99 /* VoiceProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F270355AA86A6DA9235F18D5 /* VoiceProtocolTests.swift */; };
 		DDD1F11B34F9B3926A630505 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 98913E2AE1777903CEF0FDAF /* Assets.xcassets */; };
 		DE49B422B0415CE04D4B1269 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF8093E093E40EF73D6EE1D /* SessionStore.swift */; };
 		E64ED47CFCD006FA2C3A139A /* AudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5841645AB24FA300E63B36B /* AudioCapture.swift */; };
@@ -63,6 +64,7 @@
 		D84A69132372FE451302742E /* HermesVoice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HermesVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBD27C5179FB969C4909958A /* HermesVoiceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesVoiceApp.swift; sourceTree = "<group>"; };
 		E76F8D9497951667989222C3 /* VoiceSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSocket.swift; sourceTree = "<group>"; };
+		F270355AA86A6DA9235F18D5 /* VoiceProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProtocolTests.swift; sourceTree = "<group>"; };
 		F5C3C7631A3B3FFC80835F62 /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -99,6 +101,7 @@
 			isa = PBXGroup;
 			children = (
 				0309470B51254D0C6611C26E /* HermesVoiceTests.swift */,
+				F270355AA86A6DA9235F18D5 /* VoiceProtocolTests.swift */,
 			);
 			path = HermesVoiceTests;
 			sourceTree = "<group>";
@@ -292,6 +295,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4BE79D779BC0DD09693A20E8 /* HermesVoiceTests.swift in Sources */,
+				C56CBB107BABB1EDEBAD6B99 /* VoiceProtocolTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
