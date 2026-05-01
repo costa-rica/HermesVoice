@@ -43,11 +43,32 @@ struct ConversationView: View {
                     .padding(.top, 12)
             }
 
-            pttButton
-                .padding(.bottom, 32)
-                .padding(.top, vm.activeState != .idle && !vm.isCapturing ? 8 : 16)
+            if vm.isHandsFree {
+                handsFreeControls
+                    .padding(.bottom, 32)
+                    .padding(.top, 16)
+            } else {
+                pttButton
+                    .padding(.bottom, 32)
+                    .padding(.top, vm.activeState != .idle && !vm.isCapturing ? 8 : 16)
+            }
         }
         .navigationTitle("HermesVoice")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    if vm.isHandsFree {
+                        vm.stopHandsFree()
+                    } else {
+                        Task { await vm.startHandsFree() }
+                    }
+                } label: {
+                    Image(systemName: vm.isHandsFree ? "ear.fill" : "ear")
+                        .foregroundStyle(vm.isHandsFree ? .green : .primary)
+                }
+                .accessibilityLabel(vm.isHandsFree ? "Stop hands-free" : "Start hands-free")
+            }
+        }
         .task {
             vm.connect(config: appConfig)
         }
@@ -113,6 +134,49 @@ struct ConversationView: View {
         .disabled(vm.socket.connectionState != .connected)
         .opacity(vm.socket.connectionState == .connected ? 1 : 0.4)
         .accessibilityLabel(vm.isCapturing ? "Recording — release to send" : "Hold to talk")
+    }
+
+    // MARK: - Hands-free controls
+
+    private var handsFreeControls: some View {
+        VStack(spacing: 16) {
+            // Listening indicator
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(vm.isCapturing ? Color.red : Color.green)
+                    .frame(width: 10, height: 10)
+                    .opacity(vm.isCapturing ? 1 : 0.7)
+                Text(vm.isCapturing ? "Listening…" : "Waiting for speech…")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Force-speak button (tap, not hold)
+            Button {
+                Task { await vm.forceStartUtterance() }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(vm.isCapturing ? Color.red.opacity(0.15) : Color.accentColor)
+                        .frame(width: 80, height: 80)
+                    Image(systemName: vm.isCapturing ? "waveform" : "mic.fill")
+                        .font(.title)
+                        .foregroundStyle(vm.isCapturing ? .red : .white)
+                }
+            }
+            .disabled(vm.isCapturing || vm.socket.connectionState != .connected)
+            .accessibilityLabel("Tap to speak")
+
+            Button(role: .destructive) {
+                vm.stopHandsFree()
+            } label: {
+                Label("End Conversation", systemImage: "stop.circle")
+                    .font(.footnote.weight(.medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .animation(.easeInOut(duration: 0.2), value: vm.isCapturing)
     }
 
     private var cancelButton: some View {

@@ -33,9 +33,14 @@ final class ConversationViewModel: ObservableObject {
     /// should sign the user out and route back to LoginView.
     @Published private(set) var authExpired = false
 
+    /// True while hands-free (VAD) mode is active.
+    @Published private(set) var isHandsFree = false
+
     let socket: VoiceSocket
     private let capture = AudioCapture()
     private let player = AudioPlayback()
+    private let handsFreeCapture = HandsFreeCapture()
+    private let vad = VoiceActivityDetector()
 
     private var appConfig: AppConfig?
     private var reconnectTask: Task<Void, Never>?
@@ -57,6 +62,7 @@ final class ConversationViewModel: ObservableObject {
     func disconnect() {
         reconnectTask?.cancel()
         reconnectTask = nil
+        stopHandsFree()
         stopCaptureIfNeeded()
         socket.disconnect()
     }
@@ -150,12 +156,107 @@ final class ConversationViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Hands-free mode
+
+    func startHandsFree() async {
+        guard !isHandsFree else { return }
+        guard socket.connectionState == .connected else { return }
+
+        let allowed = await AudioSessionManager.requestMicPermission()
+        guard allowed else { micPermissionDenied = true; return }
+        micPermissionDenied = false
+
+        do {
+            try AudioSessionManager.configureForVoice()
+            try handsFreeCapture.start()
+        } catch {
+            serverError = ServerError(code: "AUDIO_ERROR", message: error.localizedDescription)
+            return
+        }
+
+        wireVAD()
+        isHandsFree = true
+        log.info("Hands-free mode started")
+    }
+
+    func stopHandsFree() {
+        guard isHandsFree else { return }
+        isHandsFree = false
+        vad.reset()
+        handsFreeCapture.stop()
+        if isCapturing {
+            isCapturing = false
+            activeState = .idle
+        }
+        log.info("Hands-free mode stopped")
+    }
+
+    /// Force-starts an utterance in hands-free mode (user tapped the speak button).
+    func forceStartUtterance() async {
+        guard isHandsFree, !isCapturing else { return }
+        guard socket.connectionState == .connected else { return }
+        await cancelTurn()
+        await beginHandsFreeUtterance()
+    }
+
     // Called from View when the app moves to background.
     func handleBackground() async {
-        if isCapturing {
-            await stopPTT()
+        if isHandsFree {
+            // Keep hands-free running in background — do nothing.
+            return
         }
+        if isCapturing { await stopPTT() }
         AudioSessionManager.deactivate()
+    }
+
+    // MARK: - Private: hands-free helpers
+
+    private func wireVAD() {
+        handsFreeCapture.onAudioLevel = { [weak self] level in
+            guard let self else { return }
+            self.vad.process(level: level)
+        }
+
+        vad.onSpeechStarted = { [weak self] in
+            guard let self, self.isHandsFree, !self.isCapturing else { return }
+            guard self.activeState == .idle else { return }
+            Task { await self.beginHandsFreeUtterance() }
+        }
+
+        vad.onSpeechEnded = { [weak self] in
+            guard let self, self.isCapturing else { return }
+            Task { await self.endHandsFreeUtterance() }
+        }
+    }
+
+    private func beginHandsFreeUtterance() async {
+        guard socket.connectionState == .connected else { return }
+        do {
+            try await socket.sendStartUtterance(format: "wav", sampleRate: 16000)
+        } catch { return }
+        handsFreeCapture.beginUtterance()
+        isCapturing = true
+        activeState = .listening
+        log.info("Hands-free utterance begun")
+    }
+
+    private func endHandsFreeUtterance() async {
+        guard isCapturing else { return }
+        isCapturing = false
+        activeState = .idle
+
+        guard let wavData = handsFreeCapture.endUtterance(), wavData.count > 44 else {
+            try? await socket.sendEndOfUtterance()
+            return
+        }
+
+        log.info("Hands-free utterance ended — sending \(wavData.count) bytes")
+        do {
+            try await socket.sendAudioData(wavData)
+            try await socket.sendEndOfUtterance()
+        } catch {
+            log.error("Failed to send hands-free audio: \(error)")
+        }
     }
 
     // MARK: - Private: wire socket events into published state
@@ -241,6 +342,10 @@ final class ConversationViewModel: ObservableObject {
         guard isCapturing else { return }
         isCapturing = false
         activeState = .idle
-        capture.stopCapture()
+        if isHandsFree {
+            _ = handsFreeCapture.endUtterance()
+        } else {
+            capture.stopCapture()
+        }
     }
 }
