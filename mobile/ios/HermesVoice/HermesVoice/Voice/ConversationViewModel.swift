@@ -45,6 +45,9 @@ final class ConversationViewModel: ObservableObject {
     private var appConfig: AppConfig?
     private var reconnectTask: Task<Void, Never>?
     private var backoffDelay: TimeInterval = kBackoffBase
+    // Prevents VAD from triggering immediately after an assistant turn ends,
+    // giving speaker echo time to subside before the next speech detection cycle.
+    private var vadEnabledAfter: Date = .distantPast
 
     init(appConfig: AppConfig) {
         socket = VoiceSocket()
@@ -230,6 +233,7 @@ final class ConversationViewModel: ObservableObject {
         vad.onSpeechStarted = { [weak self] in
             guard let self, self.isHandsFree, !self.isCapturing else { return }
             guard self.activeState == .idle else { return }
+            guard Date() >= self.vadEnabledAfter else { return }
             Task { await self.beginHandsFreeUtterance() }
         }
 
@@ -269,6 +273,7 @@ final class ConversationViewModel: ObservableObject {
         }
 
         log.info("Hands-free utterance ended — sending \(wavData.count) bytes")
+        vad.reset()
         do {
             try await socket.sendAudioData(wavData)
             try await socket.sendEndOfUtterance()
@@ -343,7 +348,16 @@ final class ConversationViewModel: ObservableObject {
         }
 
         socket.onTurnEnd = { [weak self] _ in
-            self?.activeState = .idle
+            guard let self else { return }
+            self.activeState = .idle
+            if self.isHandsFree {
+                // Reset VAD state and impose a 1-second cooldown so any speaker
+                // echo from the just-finished playback doesn't false-trigger the
+                // next utterance detection.
+                self.vad.reset()
+                self.vadEnabledAfter = Date().addingTimeInterval(1.0)
+                log.debug("VAD reset after turn_end — cooldown 1 s")
+            }
         }
 
         socket.onVoiceTurnSkipped = { [weak self] _ in
