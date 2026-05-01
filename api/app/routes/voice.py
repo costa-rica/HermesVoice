@@ -19,7 +19,11 @@ from ..services.stt import ACCEPTED_FORMATS
 router = APIRouter()
 
 _PRODUCTION_ORIGINS = {"https://hermes-voice.dashanddata.com"}
-_CLIENT_HELLO_TIMEOUT_SECONDS = 0.05
+# 50 ms was fine for local browser connections but too tight for mobile clients
+# connecting over the internet (typical RTT 20-150 ms). 1 s gives plenty of
+# headroom; web clients that don't send client_hello wait at most 1 s before
+# session_started is emitted.
+_CLIENT_HELLO_TIMEOUT_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
