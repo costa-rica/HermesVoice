@@ -20,6 +20,10 @@ struct ConversationView: View {
                 micDeniedBanner
             }
 
+            if let error = vm.serverError {
+                serverErrorBanner(error)
+            }
+
             if vm.messages.isEmpty {
                 Spacer()
                 Text("Hold the button and speak to start a conversation.")
@@ -154,6 +158,30 @@ struct ConversationView: View {
             icon: "mic.slash",
             color: .red
         )
+    }
+
+    private func serverErrorBanner(_ error: ConversationViewModel.ServerError) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(error.message).font(.footnote)
+                Text(error.code)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button {
+                UIPasteboard.general.string = error.code
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.footnote)
+            }
+        }
+        .foregroundStyle(Color.orange)
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+        .background(Color.orange.opacity(0.1))
+        .onTapGesture { /* dismiss handled by next session_started */ }
     }
 
     private func banner(_ text: String, icon: String, color: Color) -> some View {

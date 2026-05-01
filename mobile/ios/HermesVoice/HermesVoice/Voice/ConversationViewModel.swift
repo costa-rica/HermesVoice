@@ -20,7 +20,13 @@ final class ConversationViewModel: ObservableObject {
 
     @Published private(set) var messages: [ConversationMessage] = []
     @Published private(set) var activeState: ActiveState = .idle
-    @Published private(set) var serverError: String?
+    /// Non-nil when the server sends a typed error frame.
+    @Published private(set) var serverError: ServerError?
+
+    struct ServerError: Equatable {
+        let code: String
+        let message: String
+    }
     @Published private(set) var isCapturing = false
     @Published private(set) var micPermissionDenied = false
     /// Set to true when the server rejects the session cookie. The view layer
@@ -108,7 +114,7 @@ final class ConversationViewModel: ObservableObject {
             try AudioSessionManager.configureForVoice()
             try capture.startCapture()
         } catch {
-            serverError = error.localizedDescription
+            serverError = ServerError(code: "AUDIO_ERROR", message: error.localizedDescription)
             return
         }
 
@@ -173,7 +179,7 @@ final class ConversationViewModel: ObservableObject {
 
         socket.onSessionStarted = { [weak self] f in
             guard let self else { return }
-            self.serverError = nil
+            self.serverError = nil  // clear any prior error on fresh session
             self.player.configure(sampleRate: Double(f.downlinkSampleRate))
         }
 
@@ -226,7 +232,7 @@ final class ConversationViewModel: ObservableObject {
         }
 
         socket.onServerError = { [weak self] f in
-            self?.serverError = "\(f.error.code): \(f.error.message)"
+            self?.serverError = ServerError(code: f.error.code, message: f.error.message)
             log.warning("server error: \(f.error.code)")
         }
     }

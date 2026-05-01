@@ -228,12 +228,12 @@ final class VoiceSocket: ObservableObject {
             break   // heartbeat ack, nothing to do
 
         case .error(let f):
-            log.warning("server error: code=\(f.error.code) msg=\(f.error.message)")
+            log.warning("server error: code=\(f.error.code) msg=\(f.error.message, privacy: .private)")
             if f.error.code == "AUTH_FAILED" { connectionState = .authFailed }
             onServerError?(f)
 
         case .unknown(let raw):
-            log.debug("unknown frame (ignored): \(raw.prefix(120))")
+            log.debug("unknown frame (ignored): \(raw.prefix(120), privacy: .private)")
         }
     }
 
