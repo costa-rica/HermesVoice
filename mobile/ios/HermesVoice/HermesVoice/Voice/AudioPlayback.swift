@@ -80,10 +80,12 @@ final class AudioPlayback {
         log.debug("Scheduled \(frameCount) frames for turn \(turnID)")
     }
 
-    /// Immediately stops playback (called on cancel_turn or new PTT press).
+    /// Immediately stops playback and resets the player node so no samples
+    /// from the cancelled turn can bleed into the next one.
     func cancelCurrentTurn() {
         currentTurnID = nil
         playerNode.stop()
+        playerNode.reset()
         log.debug("AudioPlayback cancelled")
     }
 

@@ -80,12 +80,22 @@ final class ConversationViewModel: ObservableObject {
 
     // MARK: - PTT
 
+    /// Explicitly cancels the current assistant turn — stops playback,
+    /// notifies the server, and clears active state.
+    func cancelTurn() async {
+        let turnID = socket.activeTurnID
+        player.cancelCurrentTurn()
+        activeState = .idle
+        try? await socket.sendCancelTurn(turnID: turnID)
+        log.info("cancel_turn sent for turn_id=\(turnID ?? "<nil>")")
+    }
+
     func startPTT() async {
         guard !isCapturing else { return }
         guard socket.connectionState == .connected else { return }
 
-        // Stop any in-progress assistant audio before capturing user speech.
-        player.cancelCurrentTurn()
+        // Stop any in-progress assistant audio and cancel the server turn.
+        await cancelTurn()
 
         let allowed = await AudioSessionManager.requestMicPermission()
         guard allowed else {

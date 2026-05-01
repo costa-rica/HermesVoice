@@ -34,9 +34,14 @@ struct ConversationView: View {
 
             ActiveStateBar(state: vm.activeState)
 
+            if vm.activeState != .idle && !vm.isCapturing {
+                cancelButton
+                    .padding(.top, 12)
+            }
+
             pttButton
                 .padding(.bottom, 32)
-                .padding(.top, 16)
+                .padding(.top, vm.activeState != .idle && !vm.isCapturing ? 8 : 16)
         }
         .navigationTitle("HermesVoice")
         .task {
@@ -104,6 +109,19 @@ struct ConversationView: View {
         .disabled(vm.socket.connectionState != .connected)
         .opacity(vm.socket.connectionState == .connected ? 1 : 0.4)
         .accessibilityLabel(vm.isCapturing ? "Recording — release to send" : "Hold to talk")
+    }
+
+    private var cancelButton: some View {
+        Button {
+            Task { await vm.cancelTurn() }
+        } label: {
+            Label("Cancel", systemImage: "xmark.circle.fill")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .animation(.easeInOut(duration: 0.2), value: vm.activeState)
     }
 
     private var pttColor: Color {
