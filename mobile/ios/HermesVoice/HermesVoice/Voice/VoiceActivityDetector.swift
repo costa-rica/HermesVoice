@@ -56,4 +56,12 @@ final class VoiceActivityDetector {
         consecutiveBelow = 0
         isSpeaking = false
     }
+
+    /// Immediately enter the speaking state — used when the user force-starts
+    /// an utterance so that silence detection fires when they stop talking.
+    func forceSpeaking() {
+        isSpeaking = true
+        consecutiveAbove = onsetCount
+        consecutiveBelow = 0
+    }
 }

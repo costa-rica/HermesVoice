@@ -202,7 +202,10 @@ final class ConversationViewModel: ObservableObject {
     func forceStartUtterance() async {
         guard isHandsFree, !isCapturing else { return }
         guard socket.connectionState == .connected else { return }
-        await cancelTurn()
+        // Only cancel if there is an active turn to interrupt.
+        if socket.activeTurnID != nil { await cancelTurn() }
+        // Prime the VAD into the speaking state so silence detection ends the utterance.
+        vad.forceSpeaking()
         await beginHandsFreeUtterance()
     }
 
