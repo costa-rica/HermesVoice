@@ -174,9 +174,16 @@ final class ConversationViewModel: ObservableObject {
             return
         }
 
-        wireVAD()
         isHandsFree = true
         log.info("Hands-free mode started")
+        // Let the audio session and engine settle before enabling VAD —
+        // the activation causes a brief noise burst that would false-trigger.
+        Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard self.isHandsFree else { return }
+            self.wireVAD()
+            log.info("Hands-free VAD active")
+        }
     }
 
     func stopHandsFree() {
@@ -245,8 +252,16 @@ final class ConversationViewModel: ObservableObject {
         isCapturing = false
         activeState = .idle
 
-        guard let wavData = handsFreeCapture.endUtterance(), wavData.count > 44 else {
-            try? await socket.sendEndOfUtterance()
+        let wavData = handsFreeCapture.endUtterance()
+
+        // Require at least ~500 ms of real audio (16 kHz × 2 bytes × 0.5 s = 16 000 PCM bytes
+        // + 44-byte WAV header = 16 044). Anything shorter is a false trigger.
+        // Cancel the server-side utterance rather than sending an empty end_of_utterance
+        // (which the server rejects with PROTOCOL_ERROR).
+        guard let wavData, wavData.count > 16_044 else {
+            log.info("Hands-free: utterance too short — cancelling")
+            vad.reset()
+            try? await socket.sendCancelTurn(turnID: nil)
             return
         }
 

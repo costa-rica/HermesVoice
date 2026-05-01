@@ -14,9 +14,9 @@ final class VoiceActivityDetector {
     // MARK: - Tunable thresholds
 
     /// RMS level (0–1) above which audio is considered speech.
-    var speechThreshold: Float = 0.015
+    var speechThreshold: Float = 0.025
     /// Consecutive above-threshold chunks required to declare speech onset.
-    var onsetCount: Int = 3   // ~250 ms
+    var onsetCount: Int = 4   // ~340 ms
     /// Consecutive below-threshold chunks required to declare speech end.
     var offsetCount: Int = 10  // ~850 ms
 
