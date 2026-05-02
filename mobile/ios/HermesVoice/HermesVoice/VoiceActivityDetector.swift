@@ -33,6 +33,7 @@ actor VoiceActivityDetector {
     private let sampleRate = 16000
     private let logger = Logger(subsystem: "com.dashanddata.HermesVoice", category: "vad")
 
+    private var settings: VoiceTuningSettings
     private var audioEngine: AVAudioEngine?
     private var audioSession = AVAudioSession.sharedInstance()
     private var vadModelConfig: SherpaOnnxVadModelConfig?
@@ -41,6 +42,21 @@ actor VoiceActivityDetector {
     private var processedSamples = 0
     private var speechStartSamples: Int?
     private var continuation: AsyncStream<VADEvent>.Continuation?
+
+    init(settings: VoiceTuningSettings = VoiceTuningSettings(
+        minSilenceDuration: 1.0,
+        speakerBargeInDelay: 0.45,
+        bluetoothBargeInDelay: 0.15
+    )) {
+        self.settings = settings
+    }
+
+    func updateSettings(_ settings: VoiceTuningSettings) {
+        guard self.settings != settings else { return }
+        self.settings = settings
+        setupVad()
+        continuation?.yield(.message(String(format: "Voice settings updated: pause %.2fs", settings.minSilenceDuration)))
+    }
 
     func events() -> AsyncStream<VADEvent> {
         AsyncStream { continuation in
@@ -89,7 +105,7 @@ actor VoiceActivityDetector {
         let sileroVadConfig = sherpaOnnxSileroVadModelConfig(
             model: resourcePath("silero_vad", "onnx"),
             threshold: 0.5,
-            minSilenceDuration: 0.6,
+            minSilenceDuration: Float(settings.minSilenceDuration),
             minSpeechDuration: 0.25,
             windowSize: 512,
             maxSpeechDuration: 30.0
@@ -250,10 +266,9 @@ final class VADTestViewModel: ObservableObject {
     @Published var serverState = "idle"
     @Published var playbackStatus = ""
     @Published var audioRouteStatus = "Route: unknown"
+    @Published var settings: VoiceTuningSettings
 
-    private let speakerBargeInConfirmationDelay: Duration = .milliseconds(450)
-    private let bluetoothBargeInConfirmationDelay: Duration = .milliseconds(150)
-    private let detector = VoiceActivityDetector()
+    private let detector: VoiceActivityDetector
     private let socket: VoiceSocket
     private let audioPlayer = AudioPlayer()
     private let audioSession = AVAudioSession.sharedInstance()
@@ -273,7 +288,9 @@ final class VADTestViewModel: ObservableObject {
     private var bargeCandidateID = 0
     private var bargeCandidateTask: Task<Void, Never>?
 
-    init(config: AppConfig) {
+    init(config: AppConfig, settings: VoiceTuningSettings) {
+        self.settings = settings
+        detector = VoiceActivityDetector(settings: settings)
         socket = VoiceSocket(config: config)
         updateAudioRoute(shouldLog: false)
         routeObserver = NotificationCenter.default.addObserver(
@@ -285,6 +302,18 @@ final class VADTestViewModel: ObservableObject {
                 self?.updateAudioRoute(shouldLog: true)
             }
         }
+    }
+
+    func updateSettings(_ settings: VoiceTuningSettings) {
+        guard self.settings != settings else { return }
+        self.settings = settings
+        Task {
+            await detector.updateSettings(settings)
+        }
+        append(String(format: "Settings: pause %.2fs, speaker barge %.2fs, Bluetooth barge %.2fs",
+                      settings.minSilenceDuration,
+                      settings.speakerBargeInDelay,
+                      settings.bluetoothBargeInDelay))
     }
 
     deinit {
@@ -508,7 +537,8 @@ final class VADTestViewModel: ObservableObject {
     private func scheduleBargeInConfirmation() {
         bargeCandidateID += 1
         let candidateID = bargeCandidateID
-        let delay = audioRouteUsesBluetooth ? bluetoothBargeInConfirmationDelay : speakerBargeInConfirmationDelay
+        let delaySeconds = audioRouteUsesBluetooth ? settings.bluetoothBargeInDelay : settings.speakerBargeInDelay
+        let delay = Duration.milliseconds(Int(delaySeconds * 1000))
         bargeCandidateTask?.cancel()
         bargeCandidateTask = Task { [weak self] in
             try? await Task.sleep(for: delay)
@@ -600,10 +630,12 @@ final class VADTestViewModel: ObservableObject {
 struct VADTestView: View {
     @StateObject private var viewModel: VADTestViewModel
     let config: AppConfig
+    let settings: VoiceTuningSettings
 
-    init(config: AppConfig) {
+    init(config: AppConfig, settings: VoiceTuningSettings) {
         self.config = config
-        _viewModel = StateObject(wrappedValue: VADTestViewModel(config: config))
+        self.settings = settings
+        _viewModel = StateObject(wrappedValue: VADTestViewModel(config: config, settings: settings))
     }
 
     var body: some View {
@@ -625,6 +657,9 @@ struct VADTestView: View {
                 .controlSize(.large)
             }
             .padding()
+        }
+        .onChange(of: settings) { _, newSettings in
+            viewModel.updateSettings(newSettings)
         }
     }
 
@@ -664,6 +699,13 @@ struct VADTestView: View {
                 if !viewModel.playbackStatus.isEmpty {
                     diagnosticRow(title: "Playback", value: viewModel.playbackStatus)
                 }
+                diagnosticRow(
+                    title: "Tuning",
+                    value: String(format: "pause %.2fs, speaker barge %.2fs, Bluetooth barge %.2fs",
+                                  viewModel.settings.minSilenceDuration,
+                                  viewModel.settings.speakerBargeInDelay,
+                                  viewModel.settings.bluetoothBargeInDelay)
+                )
                 if let refusalReason = config.refusalReason {
                     diagnosticRow(title: "Config", value: refusalReason, color: .red)
                 }
