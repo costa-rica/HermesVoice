@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from dataclasses import dataclass
+from hashlib import sha256
 import hmac
 import secrets
 import string
@@ -35,6 +36,12 @@ class LoginChallenge:
     expires_at: float
 
 
+@dataclass(frozen=True)
+class AuthPrincipal:
+    owner_id: str
+    auth_type: str
+
+
 # Login challenges are intentionally in-memory; a service restart clears pending
 # codes, while established session cookies continue to use the signed cookie.
 _pending_challenges: dict[str, LoginChallenge] = {}
@@ -44,8 +51,17 @@ def _is_production() -> bool:
     return settings.RUN_ENVIRONMENT == "production"
 
 
-def create_session_cookie(response: Response) -> None:
-    token = _serializer.dumps("authenticated")
+def create_session_token(subject: str | None = None) -> str:
+    payload: object
+    if subject:
+        payload = {"sub": normalize_email(subject), "auth_type": "cookie"}
+    else:
+        payload = "authenticated"
+    return _serializer.dumps(payload)
+
+
+def create_session_cookie(response: Response, subject: str | None = None) -> None:
+    token = create_session_token(subject)
     cookie_kwargs: dict = {
         "key": _SESSION_COOKIE,
         "value": token,
@@ -79,6 +95,48 @@ def verify_session(request: Request) -> bool:
         return False
 
 
+def _principal_from_cookie_token(token: str | None) -> AuthPrincipal | None:
+    if not token:
+        return None
+    try:
+        payload = _serializer.loads(token, max_age=settings.SESSION_MAX_AGE_SECONDS)
+    except (SignatureExpired, BadSignature):
+        return None
+
+    if isinstance(payload, dict):
+        subject = payload.get("sub")
+        if isinstance(subject, str) and subject.strip():
+            return AuthPrincipal(
+                owner_id=f"email:{normalize_email(subject)}",
+                auth_type=str(payload.get("auth_type") or "cookie"),
+            )
+        return None
+
+    # Preserve compatibility with old already-issued web cookies without making
+    # them a shared global owner. The owner is scoped to this exact signed token.
+    if payload == "authenticated":
+        fingerprint = sha256(token.encode("utf-8")).hexdigest()[:16]
+        return AuthPrincipal(owner_id=f"legacy_cookie:{fingerprint}", auth_type="legacy_cookie")
+    return None
+
+
+def _principal_from_api_key(key: str) -> AuthPrincipal:
+    fingerprint = sha256(key.encode("utf-8")).hexdigest()[:16]
+    return AuthPrincipal(owner_id=f"api_key:{fingerprint}", auth_type="api_key")
+
+
+def get_auth_principal(request: Request) -> AuthPrincipal | None:
+    principal = _principal_from_cookie_token(request.cookies.get(_SESSION_COOKIE))
+    if principal is not None:
+        return principal
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        key = auth_header[7:]
+        if key == settings.HERMES_VOICE_API_KEY:
+            return _principal_from_api_key(key)
+    return None
+
+
 def verify_session_ws(websocket: WebSocket) -> bool:
     token = websocket.cookies.get(_SESSION_COOKIE)
     if not token:
@@ -88,6 +146,18 @@ def verify_session_ws(websocket: WebSocket) -> bool:
         return True
     except (SignatureExpired, BadSignature):
         return False
+
+
+def get_auth_principal_ws(websocket: WebSocket) -> AuthPrincipal | None:
+    principal = _principal_from_cookie_token(websocket.cookies.get(_SESSION_COOKIE))
+    if principal is not None:
+        return principal
+    auth_header = websocket.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        key = auth_header[7:]
+        if key == settings.HERMES_VOICE_API_KEY:
+            return _principal_from_api_key(key)
+    return None
 
 
 def verify_api_key(request: Request) -> bool:
@@ -192,3 +262,21 @@ def verify_login_challenge(
         return False
     _pending_challenges.pop(challenge_id, None)
     return True
+
+
+def verify_login_challenge_subject(
+    challenge_id: str,
+    code: str,
+    now: float | None = None,
+) -> str | None:
+    now = time.monotonic() if now is None else now
+    challenge = _pending_challenges.get(challenge_id)
+    if challenge is None:
+        return None
+    if challenge.expires_at < now:
+        _pending_challenges.pop(challenge_id, None)
+        return None
+    if not hmac.compare_digest(challenge.code, code.strip()):
+        return None
+    _pending_challenges.pop(challenge_id, None)
+    return challenge.email

@@ -3,18 +3,20 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from loguru import logger
+from pydantic import BaseModel, Field
 
-from ..auth import verify_api_key_ws, verify_session_ws
+from ..auth import AuthPrincipal, get_auth_principal, get_auth_principal_ws
 from ..config import settings
-from ..errors import ws_error_frame
+from ..errors import error_response, ws_error_frame
 from ..services.pipeline import run_voice_turn
 from ..services.stt import ACCEPTED_FORMATS
+from ..services import voice_store
 
 router = APIRouter()
 
@@ -41,6 +43,118 @@ _SUPPORTED_DOWNLINKS: dict[str, DownlinkChoice] = {
 _WEB_DEFAULT_DOWNLINK = _SUPPORTED_DOWNLINKS["opus_ogg"]
 
 
+class VoiceSessionCreateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+
+
+class VoiceSessionPatchRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    archived: bool | None = None
+
+
+def _auth_failed_response() -> JSONResponse:
+    return error_response("AUTH_FAILED", "Authentication required", 401)
+
+
+def _session_missing_response(session_id: str) -> JSONResponse:
+    status = 403 if voice_store.session_exists(session_id) else 404
+    if status == 403:
+        return error_response(
+            "VOICE_SESSION_FORBIDDEN",
+            "Voice session is not available for this account",
+            status,
+        )
+    return error_response("VOICE_SESSION_NOT_FOUND", "Voice session not found", status)
+
+
+def _require_principal(request: Request) -> AuthPrincipal | JSONResponse:
+    principal = get_auth_principal(request)
+    if principal is None:
+        return _auth_failed_response()
+    return principal
+
+
+def _session_payload(session: dict) -> dict:
+    return {"session": session}
+
+
+@router.get("/api/voice/sessions")
+async def list_voice_sessions(request: Request) -> JSONResponse:
+    principal = _require_principal(request)
+    if isinstance(principal, JSONResponse):
+        return principal
+    return JSONResponse({"sessions": voice_store.list_sessions(principal.owner_id)})
+
+
+@router.post("/api/voice/sessions", status_code=201)
+async def create_voice_session(
+    body: VoiceSessionCreateRequest,
+    request: Request,
+) -> JSONResponse:
+    principal = _require_principal(request)
+    if isinstance(principal, JSONResponse):
+        return principal
+    session = voice_store.create_session(principal.owner_id, title=body.title)
+    return JSONResponse(_session_payload(session), status_code=201)
+
+
+@router.get("/api/voice/sessions/{session_id}")
+async def get_voice_session(session_id: str, request: Request) -> JSONResponse:
+    principal = _require_principal(request)
+    if isinstance(principal, JSONResponse):
+        return principal
+    session = voice_store.get_session(principal.owner_id, session_id)
+    if session is None:
+        return _session_missing_response(session_id)
+    return JSONResponse(_session_payload(session))
+
+
+@router.patch("/api/voice/sessions/{session_id}")
+async def patch_voice_session(
+    session_id: str,
+    body: VoiceSessionPatchRequest,
+    request: Request,
+) -> JSONResponse:
+    principal = _require_principal(request)
+    if isinstance(principal, JSONResponse):
+        return principal
+    session = voice_store.patch_session(
+        principal.owner_id,
+        session_id,
+        title=body.title if "title" in body.model_fields_set else ...,
+        archived=body.archived,
+    )
+    if session is None:
+        return _session_missing_response(session_id)
+    return JSONResponse(_session_payload(session))
+
+
+@router.delete("/api/voice/sessions/{session_id}")
+async def delete_voice_session(session_id: str, request: Request) -> JSONResponse:
+    principal = _require_principal(request)
+    if isinstance(principal, JSONResponse):
+        return principal
+    session = voice_store.archive_session(principal.owner_id, session_id)
+    if session is None:
+        return _session_missing_response(session_id)
+    return JSONResponse({
+        "ok": True,
+        "session_id": session["id"],
+        "archived_at": session["archived_at"],
+    })
+
+
+@router.get("/api/voice/sessions/{session_id}/messages")
+async def list_voice_session_messages(session_id: str, request: Request) -> JSONResponse:
+    principal = _require_principal(request)
+    if isinstance(principal, JSONResponse):
+        return principal
+    session = voice_store.get_session(principal.owner_id, session_id)
+    if session is None:
+        return _session_missing_response(session_id)
+    return JSONResponse({"messages": voice_store.list_messages(principal.owner_id, session_id)})
+
+
 def _check_origin(websocket: WebSocket) -> bool:
     origin = websocket.headers.get("origin", "")
     # Native mobile clients (iOS/Android) don't send Origin; browsers always do.
@@ -52,14 +166,28 @@ def _check_origin(websocket: WebSocket) -> bool:
     return True
 
 
-def _session_started_frame(conversation_id: str, downlink: DownlinkChoice) -> dict:
-    return {
+def _session_started_frame(
+    conversation_id: str,
+    downlink: DownlinkChoice,
+    *,
+    session_id: str | None = None,
+    resumed: bool | None = None,
+    created: bool | None = None,
+) -> dict:
+    frame = {
         "event": "session_started",
         "conversation_id": conversation_id,
         "downlink_format": downlink.format,
         "downlink_sample_rate": downlink.sample_rate,
         "downlink_channels": downlink.channels,
     }
+    if session_id is not None:
+        frame["session_id"] = session_id
+    if resumed is not None:
+        frame["resumed"] = resumed
+    if created is not None:
+        frame["created"] = created
+    return frame
 
 
 def _choose_downlink(frame: dict) -> DownlinkChoice | None:
@@ -72,31 +200,33 @@ def _choose_downlink(frame: dict) -> DownlinkChoice | None:
     return None
 
 
-async def _receive_client_hello(websocket: WebSocket) -> tuple[DownlinkChoice, dict | None, bool]:
-    """Return downlink, optional already-read non-hello message, and supported flag."""
+async def _receive_client_hello(
+    websocket: WebSocket,
+) -> tuple[DownlinkChoice, dict | None, bool, dict | None]:
+    """Return downlink, optional already-read non-hello message, supported flag, hello frame."""
     try:
         msg = await asyncio.wait_for(websocket.receive(), timeout=_CLIENT_HELLO_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
-        return _WEB_DEFAULT_DOWNLINK, None, True
+        return _WEB_DEFAULT_DOWNLINK, None, True, None
 
     if msg["type"] == "websocket.disconnect":
-        return _WEB_DEFAULT_DOWNLINK, msg, True
+        return _WEB_DEFAULT_DOWNLINK, msg, True, None
 
     if msg["type"] != "websocket.receive" or "text" not in msg or msg["text"] is None:
-        return _WEB_DEFAULT_DOWNLINK, msg, True
+        return _WEB_DEFAULT_DOWNLINK, msg, True, None
 
     try:
         frame = json.loads(msg["text"])
     except json.JSONDecodeError:
-        return _WEB_DEFAULT_DOWNLINK, msg, True
+        return _WEB_DEFAULT_DOWNLINK, msg, True, None
 
     if frame.get("event") != "client_hello":
-        return _WEB_DEFAULT_DOWNLINK, msg, True
+        return _WEB_DEFAULT_DOWNLINK, msg, True, None
 
     downlink = _choose_downlink(frame)
     if downlink is None:
-        return _WEB_DEFAULT_DOWNLINK, None, False
-    return downlink, None, True
+        return _WEB_DEFAULT_DOWNLINK, None, False, frame
+    return downlink, None, True, frame
 
 
 @router.websocket("/ws/voice")
@@ -107,7 +237,8 @@ async def ws_voice(websocket: WebSocket) -> None:
         return
 
     # Auth: session cookie or API key
-    if not verify_session_ws(websocket) and not verify_api_key_ws(websocket):
+    principal = get_auth_principal_ws(websocket)
+    if principal is None:
         await websocket.accept()
         await websocket.send_json(ws_error_frame("AUTH_FAILED", "Authentication required", 401))
         await websocket.close(code=4001)
@@ -115,8 +246,7 @@ async def ws_voice(websocket: WebSocket) -> None:
 
     await websocket.accept()
 
-    conversation_id = str(uuid.uuid4())
-    downlink, pending_msg, downlink_supported = await _receive_client_hello(websocket)
+    downlink, pending_msg, downlink_supported, hello_frame = await _receive_client_hello(websocket)
     if not downlink_supported:
         await websocket.send_json(
             ws_error_frame(
@@ -127,7 +257,53 @@ async def ws_voice(websocket: WebSocket) -> None:
         )
         await websocket.close(code=4000)
         return
-    await websocket.send_json(_session_started_frame(conversation_id, downlink))
+
+    requested_session_id = (
+        hello_frame.get("session_id")
+        if isinstance(hello_frame, dict) and isinstance(hello_frame.get("session_id"), str)
+        else None
+    )
+    if requested_session_id:
+        session = voice_store.get_session(
+            principal.owner_id,
+            requested_session_id,
+            include_archived=False,
+        )
+        if session is None:
+            exists = voice_store.session_exists(requested_session_id)
+            if exists:
+                await websocket.send_json(
+                    ws_error_frame(
+                        "VOICE_SESSION_FORBIDDEN",
+                        "Voice session is not available for this account",
+                        403,
+                    )
+                )
+                await websocket.close(code=4003)
+            else:
+                await websocket.send_json(
+                    ws_error_frame("VOICE_SESSION_NOT_FOUND", "Voice session not found", 404)
+                )
+                await websocket.close(code=4004)
+            return
+        resumed = True
+        created = False
+    else:
+        session = voice_store.create_session(principal.owner_id)
+        resumed = False
+        created = True
+
+    session_id = session["id"]
+    conversation_id = session["conversation_id"]
+    await websocket.send_json(
+        _session_started_frame(
+            conversation_id,
+            downlink,
+            session_id=session_id,
+            resumed=resumed,
+            created=created,
+        )
+    )
 
     audio_buffer: bytearray = bytearray()
     current_format: Optional[str] = None
@@ -146,7 +322,34 @@ async def ws_voice(websocket: WebSocket) -> None:
         try:
             await websocket.send_json(data)
         except Exception:
-            pass
+            return
+        try:
+            if data.get("event") == "transcript" and isinstance(data.get("text"), str):
+                voice_store.add_message(
+                    principal.owner_id,
+                    session_id,
+                    turn_id=str(data.get("turn_id")) if data.get("turn_id") is not None else None,
+                    role="user",
+                    text=data["text"],
+                    final=True,
+                    metadata={"source": "stt"},
+                )
+            elif (
+                data.get("event") == "assistant_text"
+                and data.get("final") is True
+                and isinstance(data.get("text"), str)
+            ):
+                voice_store.add_message(
+                    principal.owner_id,
+                    session_id,
+                    turn_id=str(data.get("turn_id")) if data.get("turn_id") is not None else None,
+                    role="assistant",
+                    text=data["text"],
+                    final=True,
+                    metadata={"source": "hermes"},
+                )
+        except Exception as exc:
+            logger.warning(f"Unable to persist voice message: {exc!r}")
 
     async def send_bytes(data: bytes) -> None:
         try:
@@ -330,8 +533,18 @@ async def ws_voice(websocket: WebSocket) -> None:
                         audio_buffer.clear()
                         utterance_started = False
                         utterance_started_at = None
-                        conversation_id = str(uuid.uuid4())
-                        await send_json(_session_started_frame(conversation_id, downlink))
+                        session = voice_store.create_session(principal.owner_id)
+                        session_id = session["id"]
+                        conversation_id = session["conversation_id"]
+                        await send_json(
+                            _session_started_frame(
+                                conversation_id,
+                                downlink,
+                                session_id=session_id,
+                                resumed=False,
+                                created=True,
+                            )
+                        )
                         logger.info(f"New session: {conversation_id}")
 
                     else:

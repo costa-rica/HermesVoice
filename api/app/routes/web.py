@@ -14,7 +14,7 @@ from ..auth import (
     create_login_challenge,
     is_allowed_web_email,
     normalize_email,
-    verify_login_challenge,
+    verify_login_challenge_subject,
     verify_session,
 )
 from ..config import settings
@@ -143,7 +143,8 @@ async def verify_login(
             details=f"Retry after {retry_after:.0f} seconds",
         )
 
-    if not verify_login_challenge(challenge_id, code):
+    subject = verify_login_challenge_subject(challenge_id, code)
+    if subject is None:
         html = _verify_page(
             challenge_id,
             "your allowed address",
@@ -153,7 +154,7 @@ async def verify_login(
 
     logger.info(f"Successful 2FA login from {ip}")
     redirect = RedirectResponse("/", status_code=302)
-    create_session_cookie(redirect)
+    create_session_cookie(redirect, subject=subject)
     return redirect
 
 

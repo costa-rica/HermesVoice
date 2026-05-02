@@ -13,7 +13,7 @@ from ..auth import (
     create_session_cookie,
     is_allowed_web_email,
     normalize_email,
-    verify_login_challenge,
+    verify_login_challenge_subject,
     verify_session,
 )
 from ..config import settings
@@ -88,12 +88,13 @@ async def api_verify(body: VerifyRequest, request: Request) -> JSONResponse:
             details=f"Retry after {retry_after:.0f} seconds",
         )
 
-    if not verify_login_challenge(body.challenge_id, body.code):
+    subject = verify_login_challenge_subject(body.challenge_id, body.code)
+    if subject is None:
         return error_response("INVALID_CODE", "Invalid or expired code.", 401)
 
     logger.info(f"[mobile] Successful 2FA login from {ip}")
     resp = JSONResponse({"ok": True})
-    create_session_cookie(resp)
+    create_session_cookie(resp, subject=subject)
     return resp
 
 

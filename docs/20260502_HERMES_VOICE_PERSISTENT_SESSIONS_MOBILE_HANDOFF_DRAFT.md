@@ -2,7 +2,8 @@
 
 Date: 2026-05-02
 Branch reviewed: `dev_05_persistence`
-Status: pre-implementation contract draft. The endpoints and WebSocket fields below are proposed and are not live until the API implementation lands.
+Status: superseded. The implemented backend/API contract is now documented in
+`docs/20260502_HERMES_VOICE_PERSISTENT_SESSIONS_API_HANDOFF.md`.
 
 ## Review decision
 

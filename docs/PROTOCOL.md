@@ -21,12 +21,21 @@ The extended `session_started` frame is:
 ```json
 {
   "event": "session_started",
+  "session_id": "<persistent-voice-session-uuid>",
   "conversation_id": "<uuid>",
   "downlink_format": "aac_adts",
   "downlink_sample_rate": 24000,
-  "downlink_channels": 1
+  "downlink_channels": 1,
+  "resumed": false,
+  "created": true
 }
 ```
+
+`conversation_id` remains present for existing clients and is the Hermes
+conversation id. When `client_hello.session_id` is provided and owned by the
+authenticated caller, the server resumes that persistent voice session and
+returns `resumed=true` and `created=false`. If `session_id` is omitted, the
+server creates a new persistent voice session.
 
 ## Turn binding
 

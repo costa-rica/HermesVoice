@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     HERMES_VOICE_WEB_PASSWORD: str
     HERMES_VOICE_WEB_EMAILS: str
     HERMES_VOICE_API_KEY: str
+    HERMES_VOICE_DB_PATH: str = "/tmp/hermes_voice_sessions.sqlite3"
     SESSION_SECRET: str
     LOGIN_CODE_TTL_SECONDS: int = 10 * 60
     LOGIN_CODE_LENGTH: int = 6

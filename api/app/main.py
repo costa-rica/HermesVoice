@@ -13,6 +13,7 @@ from .auth import verify_session
 from .config import settings
 from .logging_config import configure_logging
 from .routes import health, mobile_auth, voice, web
+from .services.voice_store import ensure_schema
 
 configure_logging(
     name_app=settings.NAME_APP,
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
         f"HermesVoice starting — env={settings.RUN_ENVIRONMENT!r} "
         f"app={settings.NAME_APP!r}"
     )
+    ensure_schema()
     yield
     logger.info("HermesVoice shutting down")
 
@@ -45,7 +47,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
