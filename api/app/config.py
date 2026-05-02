@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     SESSION_SECRET: str
     LOGIN_CODE_TTL_SECONDS: int = 10 * 60
     LOGIN_CODE_LENGTH: int = 6
+    HERMES_VOICE_MOCK_PIPELINE: bool = False
+    HERMES_VOICE_MOCK_EMAIL: bool = False
 
     # Login email delivery
     HERMES_VOICE_SMTP_HOST: str = Field(
@@ -116,11 +118,19 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def validate_logs_path(self) -> "Settings":
+    def validate_environment_settings(self) -> "Settings":
         if self.RUN_ENVIRONMENT in ("testing", "production") and not self.PATH_TO_LOGS:
             print(
                 "FATAL: PATH_TO_LOGS is required when RUN_ENVIRONMENT is "
                 f"{self.RUN_ENVIRONMENT!r}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if self.RUN_ENVIRONMENT == "production" and (
+            self.HERMES_VOICE_MOCK_PIPELINE or self.HERMES_VOICE_MOCK_EMAIL
+        ):
+            print(
+                "FATAL: mock pipeline/email modes are not allowed in production",
                 file=sys.stderr,
             )
             sys.exit(1)

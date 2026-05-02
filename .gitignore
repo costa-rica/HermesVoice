@@ -52,6 +52,9 @@ mobile/**/.build/
 mobile/**/*.xcworkspace/xcuserdata/
 mobile/**/*.xcodeproj/xcuserdata/
 
+# Native iOS runtime artifacts
+mobile/ios/HermesVoice/Vendor/sherpa-onnx/
+
 # Xcode user state
 *.xcuserstate
 xcuserdata/

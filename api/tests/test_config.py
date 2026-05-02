@@ -50,6 +50,8 @@ def test_settings_defaults():
     assert settings.IDLE_TIMEOUT == 120
     assert settings.LOGIN_CODE_TTL_SECONDS == 600
     assert settings.LOGIN_CODE_LENGTH == 6
+    assert settings.HERMES_VOICE_MOCK_PIPELINE is False
+    assert settings.HERMES_VOICE_MOCK_EMAIL is False
 
 
 def test_timeout_env_overrides(monkeypatch):

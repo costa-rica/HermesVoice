@@ -35,7 +35,7 @@ class DownlinkChoice:
 
 _SUPPORTED_DOWNLINKS: dict[str, DownlinkChoice] = {
     "aac_adts": DownlinkChoice("aac_adts", 24000, 1),
-    "wav_pcm16": DownlinkChoice("wav_pcm16", 24000, 1),
+    "wav_pcm16": DownlinkChoice("wav_pcm16", 16000, 1),
     "opus_ogg": DownlinkChoice("opus_ogg", 24000, 1),
 }
 _WEB_DEFAULT_DOWNLINK = _SUPPORTED_DOWNLINKS["opus_ogg"]

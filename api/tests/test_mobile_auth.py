@@ -73,6 +73,34 @@ async def test_api_login_email_send_failure_returns_502(client, monkeypatch):
     assert resp.json()["error"]["code"] == "EMAIL_SEND_FAILED"
 
 
+@pytest.mark.asyncio
+async def test_api_login_mock_email_returns_code(client, monkeypatch):
+    from app.config import settings
+
+    async def fail_send(email: str, code: str) -> None:
+        raise AssertionError("mock email mode should not send SMTP email")
+
+    monkeypatch.setattr(settings, "HERMES_VOICE_MOCK_EMAIL", True)
+    monkeypatch.setattr("app.routes.mobile_auth.send_verification_code", fail_send)
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"email": "allowed@example.com", "password": "test-password"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "challenge_id" in body
+    assert body["mock_code"].isdigit()
+    assert len(body["mock_code"]) == settings.LOGIN_CODE_LENGTH
+
+    verify_resp = await client.post(
+        "/api/auth/verify",
+        json={"challenge_id": body["challenge_id"], "code": body["mock_code"]},
+    )
+    assert verify_resp.status_code == 200
+    assert "hv_session" in verify_resp.cookies
+
+
 # ---------------------------------------------------------------------------
 # POST /api/auth/verify
 # ---------------------------------------------------------------------------

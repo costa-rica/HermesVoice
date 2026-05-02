@@ -56,15 +56,19 @@ async def api_login(body: LoginRequest, request: Request) -> JSONResponse:
         return error_response("INVALID_CREDENTIALS", "Incorrect email or password.", 401)
 
     challenge_id, code = create_login_challenge(normalized)
-    try:
-        await send_verification_code(normalized, code)
-    except Exception:
-        logger.exception(f"[mobile] Email send failed for {normalized}")
-        return error_response(
-            "EMAIL_SEND_FAILED",
-            "Unable to send verification code. Try again later.",
-            502,
-        )
+    if settings.HERMES_VOICE_MOCK_EMAIL:
+        logger.info("[mobile] mock email mode enabled; returning verification code")
+        return JSONResponse({"challenge_id": challenge_id, "mock_code": code})
+    else:
+        try:
+            await send_verification_code(normalized, code)
+        except Exception:
+            logger.exception(f"[mobile] Email send failed for {normalized}")
+            return error_response(
+                "EMAIL_SEND_FAILED",
+                "Unable to send verification code. Try again later.",
+                502,
+            )
 
     logger.info(f"[mobile] 2FA challenge started for {normalized} from {ip}")
     return JSONResponse({"challenge_id": challenge_id})

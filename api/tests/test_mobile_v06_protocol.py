@@ -23,7 +23,7 @@ async def _fake_hermes(text: str, cid: str, **kwargs):
     yield "short reply"
 
 
-async def _fake_tts(text: str) -> bytes:
+async def _fake_tts(text: str, format: str | None = None) -> bytes:
     return b"audio:" + text.encode()
 
 
@@ -206,3 +206,59 @@ async def test_audio_chunk_bytes_match_binary_length(client):
     audio_chunks = [frame for frame in sent_json if frame.get("event") == "audio_chunk"]
     assert [frame["bytes"] for frame in audio_chunks] == [len(data) for data in sent_bytes]
     assert all(frame["format"] == "wav_pcm16" for frame in audio_chunks)
+
+
+async def test_mock_pipeline_returns_mobile_turn_frames(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "HERMES_VOICE_MOCK_PIPELINE", True)
+
+    with _test_client() as tc:
+        with tc.websocket_connect(
+            "/ws/voice", headers={"Authorization": "Bearer test-api-key"}
+        ) as ws:
+            ws.send_text(json.dumps({
+                "event": "client_hello",
+                "client": "ios",
+                "client_version": "0.0.1-dev",
+                "accepted_downlink_formats": ["wav_pcm16"],
+            }))
+            started = ws.receive_json()
+            assert started["downlink_format"] == "wav_pcm16"
+            assert started["downlink_sample_rate"] == 16000
+
+            ws.send_text(json.dumps({
+                "event": "start_utterance",
+                "format": "wav",
+                "sample_rate": 16000,
+            }))
+            ws.send_bytes(b"\x00" * 100)
+            ws.send_text(json.dumps({"event": "end_of_utterance"}))
+
+            frames: list[dict] = []
+            audio = b""
+            while True:
+                msg = ws.receive()
+                if "text" in msg:
+                    frame = json.loads(msg["text"])
+                    frames.append(frame)
+                    if frame.get("event") == "turn_end":
+                        break
+                elif "bytes" in msg:
+                    audio = msg["bytes"]
+
+            events = [frame.get("event") for frame in frames]
+            assert events == [
+                "transcript",
+                "active_state",
+                "turn_started",
+                "assistant_text",
+                "audio_chunk",
+                "turn_completed",
+                "active_state",
+                "turn_end",
+            ]
+            audio_chunk = next(frame for frame in frames if frame["event"] == "audio_chunk")
+            assert audio_chunk["format"] == "wav_pcm16"
+            assert audio_chunk["bytes"] == len(audio)
+            assert audio
