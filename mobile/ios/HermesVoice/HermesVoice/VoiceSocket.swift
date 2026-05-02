@@ -76,6 +76,11 @@ actor VoiceSocket {
         logger.info("Sent WAV utterance: \(wav.count, privacy: .public) bytes")
     }
 
+    func cancelTurn(turnID: String? = nil) async throws {
+        try await sendJSON(CancelTurnFrame(turnID: turnID))
+        logger.info("Sent cancel_turn for \(turnID ?? "active", privacy: .public)")
+    }
+
     private func receiveLoop() async {
         while let task {
             do {

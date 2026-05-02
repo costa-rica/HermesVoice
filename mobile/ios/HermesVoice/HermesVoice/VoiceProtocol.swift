@@ -30,6 +30,20 @@ struct EndOfUtteranceFrame: Encodable {
     let event = "end_of_utterance"
 }
 
+struct CancelTurnFrame: Encodable {
+    let event = "cancel_turn"
+    let turnID: String?
+
+    init(turnID: String? = nil) {
+        self.turnID = turnID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case event
+        case turnID = "turn_id"
+    }
+}
+
 struct PingFrame: Encodable {
     let event = "ping"
     let id: String

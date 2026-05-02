@@ -89,7 +89,7 @@ actor VoiceActivityDetector {
         let sileroVadConfig = sherpaOnnxSileroVadModelConfig(
             model: resourcePath("silero_vad", "onnx"),
             threshold: 0.5,
-            minSilenceDuration: 0.35,
+            minSilenceDuration: 0.6,
             minSpeechDuration: 0.25,
             windowSize: 512,
             maxSpeechDuration: 30.0
@@ -109,9 +109,12 @@ actor VoiceActivityDetector {
         do {
             try audioSession.setCategory(
                 .playAndRecord,
-                mode: .measurement,
-                options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers]
+                mode: .voiceChat,
+                options: [.defaultToSpeaker, .allowBluetoothHFP]
             )
+            if #available(iOS 18.2, *) {
+                try audioSession.setPrefersEchoCancelledInput(true)
+            }
             try audioSession.setPreferredSampleRate(Double(sampleRate))
             try audioSession.setActive(true)
         } catch {
@@ -246,18 +249,48 @@ final class VADTestViewModel: ObservableObject {
     @Published var downlinkFormat = ""
     @Published var serverState = "idle"
     @Published var playbackStatus = ""
+    @Published var audioRouteStatus = "Route: unknown"
 
+    private let speakerBargeInConfirmationDelay: Duration = .milliseconds(450)
+    private let bluetoothBargeInConfirmationDelay: Duration = .milliseconds(150)
     private let detector = VoiceActivityDetector()
     private let socket: VoiceSocket
     private let audioPlayer = AudioPlayer()
+    private let audioSession = AVAudioSession.sharedInstance()
     private var eventTask: Task<Void, Never>?
     private var socketTask: Task<Void, Never>?
+    private var routeObserver: NSObjectProtocol?
     private var events: [String] = []
     private var downlinkSampleRate = 16000
     private var downlinkChannels = 1
+    private var audioRouteUsesBluetooth = false
+    private var rawIsSpeaking = false
+    private var assistantPlaybackActive = false
+    private var playbackGeneration = 0
+    private var activeAssistantTurnID: String?
+    private var canceledTurnIDs = Set<String>()
+    private var bargeInConfirmed = false
+    private var bargeCandidateID = 0
+    private var bargeCandidateTask: Task<Void, Never>?
 
     init(config: AppConfig) {
         socket = VoiceSocket(config: config)
+        updateAudioRoute(shouldLog: false)
+        routeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: audioSession,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateAudioRoute(shouldLog: true)
+            }
+        }
+    }
+
+    deinit {
+        if let routeObserver {
+            NotificationCenter.default.removeObserver(routeObserver)
+        }
     }
 
     func start() {
@@ -269,6 +302,14 @@ final class VADTestViewModel: ObservableObject {
         assistantText = ""
         serverState = "idle"
         playbackStatus = ""
+        updateAudioRoute(shouldLog: false)
+        rawIsSpeaking = false
+        assistantPlaybackActive = false
+        activeAssistantTurnID = nil
+        canceledTurnIDs.removeAll()
+        bargeInConfirmed = false
+        bargeCandidateTask?.cancel()
+        bargeCandidateTask = nil
 
         socketTask = Task {
             let stream = await socket.events()
@@ -306,6 +347,11 @@ final class VADTestViewModel: ObservableObject {
                 isRunning = false
                 isSpeaking = false
                 lastEvent = "silent"
+                rawIsSpeaking = false
+                assistantPlaybackActive = false
+                bargeInConfirmed = false
+                bargeCandidateTask?.cancel()
+                bargeCandidateTask = nil
             }
         }
         eventTask?.cancel()
@@ -321,14 +367,32 @@ final class VADTestViewModel: ObservableObject {
     private func handle(_ event: VADEvent) {
         switch event {
         case .started(let at):
-            append(String(format: "Speech start at %.2fs", at))
+            rawIsSpeaking = true
+            if assistantPlaybackActive {
+                append(String(format: "Potential barge-in at %.2fs", at))
+                scheduleBargeInConfirmation()
+            } else {
+                isSpeaking = true
+                lastEvent = "speaking"
+                append(String(format: "Speech start at %.2fs", at))
+            }
         case .ended(let at, let duration, let samples):
+            rawIsSpeaking = false
+            bargeCandidateTask?.cancel()
+            bargeCandidateTask = nil
             append(String(format: "Speech end at %.2fs, duration %.2fs", at, duration))
+            if assistantPlaybackActive && !bargeInConfirmed {
+                append("Ignored playback-side speech candidate.")
+                isSpeaking = false
+                lastEvent = "silent"
+                return
+            }
             Task {
                 do {
                     try await socket.sendUtterance(samples: samples)
                     await MainActor.run {
                         append(String(format: "Sent utterance: %.2fs", duration))
+                        bargeInConfirmed = false
                     }
                 } catch {
                     await MainActor.run {
@@ -337,8 +401,14 @@ final class VADTestViewModel: ObservableObject {
                 }
             }
         case .stateChanged(let speaking):
-            isSpeaking = speaking
-            lastEvent = speaking ? "speaking" : "silent"
+            rawIsSpeaking = speaking
+            if !assistantPlaybackActive || bargeInConfirmed {
+                isSpeaking = speaking
+                lastEvent = speaking ? "speaking" : "silent"
+            } else if !speaking {
+                isSpeaking = false
+                lastEvent = "silent"
+            }
         case .message(let message):
             append(message)
         }
@@ -356,8 +426,16 @@ final class VADTestViewModel: ObservableObject {
             handleServerFrame(frame)
         case .audioChunk(let data, let prelude):
             let format = prelude.format ?? downlinkFormat
+            if let turnID = prelude.turnID, canceledTurnIDs.contains(turnID) {
+                append("Ignored canceled audio chunk \(prelude.seq ?? 0): \(turnID)")
+                return
+            }
+            if let turnID = prelude.turnID {
+                activeAssistantTurnID = turnID
+            }
             append("Audio chunk \(prelude.seq ?? 0): \(data.count) bytes \(format)")
             playbackStatus = "Playing \(format) \(data.count) bytes"
+            markAssistantPlaybackActive(for: data, format: format)
             Task {
                 do {
                     try await audioPlayer.play(
@@ -402,6 +480,12 @@ final class VADTestViewModel: ObservableObject {
         case "turn_completed", "turn_end":
             if frame.event == "turn_end" {
                 serverState = "idle"
+                if let turnID = frame.turnID {
+                    canceledTurnIDs.remove(turnID)
+                    if activeAssistantTurnID == turnID {
+                        activeAssistantTurnID = nil
+                    }
+                }
             }
             append("Server: \(frame.event)")
         case "audio_chunk", "voice_turn_skipped", "pong":
@@ -420,6 +504,97 @@ final class VADTestViewModel: ObservableObject {
         events.append(event)
         eventLog = events.suffix(30).joined(separator: "\n")
     }
+
+    private func scheduleBargeInConfirmation() {
+        bargeCandidateID += 1
+        let candidateID = bargeCandidateID
+        let delay = audioRouteUsesBluetooth ? bluetoothBargeInConfirmationDelay : speakerBargeInConfirmationDelay
+        bargeCandidateTask?.cancel()
+        bargeCandidateTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                guard self.bargeCandidateID == candidateID else { return }
+                guard self.rawIsSpeaking, self.assistantPlaybackActive, !self.bargeInConfirmed else { return }
+                self.confirmBargeIn()
+            }
+        }
+    }
+
+    private func confirmBargeIn() {
+        bargeInConfirmed = true
+        assistantPlaybackActive = false
+        playbackGeneration += 1
+        isSpeaking = true
+        lastEvent = "speaking"
+        playbackStatus = "Interrupted assistant audio"
+        append("Barge-in confirmed; canceling assistant turn.")
+
+        let turnID = activeAssistantTurnID
+        if let turnID {
+            canceledTurnIDs.insert(turnID)
+        }
+
+        Task {
+            await audioPlayer.stop()
+            do {
+                try await socket.cancelTurn(turnID: turnID)
+            } catch {
+                await MainActor.run {
+                    append("Cancel failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func markAssistantPlaybackActive(for data: Data, format: String) {
+        assistantPlaybackActive = true
+        bargeInConfirmed = false
+        playbackGeneration += 1
+        let generation = playbackGeneration
+        let duration = estimatedPlaybackDuration(data: data, format: format)
+
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(Int((duration + 0.25) * 1000)))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.playbackGeneration == generation else { return }
+                self.assistantPlaybackActive = false
+                self.activeAssistantTurnID = nil
+                if !self.rawIsSpeaking {
+                    self.isSpeaking = false
+                    self.lastEvent = "silent"
+                }
+            }
+        }
+    }
+
+    private func estimatedPlaybackDuration(data: Data, format: String) -> TimeInterval {
+        guard format == "wav_pcm16", downlinkSampleRate > 0, downlinkChannels > 0 else {
+            return 0.5
+        }
+        let bytesPerFrame = max(1, downlinkChannels * 2)
+        return TimeInterval(data.count / bytesPerFrame) / TimeInterval(downlinkSampleRate)
+    }
+
+    private func updateAudioRoute(shouldLog: Bool) {
+        let route = audioSession.currentRoute
+        let outputs = route.outputs
+        audioRouteUsesBluetooth = outputs.contains { output in
+            output.portType == .bluetoothA2DP ||
+                output.portType == .bluetoothHFP ||
+                output.portType == .bluetoothLE
+        }
+
+        let routeName = outputs.map(\.portName).joined(separator: ", ")
+        let suffix = routeName.isEmpty ? "unknown" : routeName
+        audioRouteStatus = audioRouteUsesBluetooth ? "Route: Bluetooth" : "Route: \(suffix)"
+
+        if shouldLog {
+            append("\(audioRouteStatus); barge-in \(audioRouteUsesBluetooth ? "easy" : "speaker-safe")")
+        }
+    }
 }
 
 struct VADTestView: View {
@@ -432,90 +607,138 @@ struct VADTestView: View {
     }
 
     var body: some View {
-        VStack(spacing: 18) {
-            VStack(spacing: 10) {
-                Circle()
-                    .fill(viewModel.isSpeaking ? Color.green : Color.secondary.opacity(0.35))
-                    .frame(width: 96, height: 96)
-                    .overlay {
-                        Circle()
-                            .stroke(viewModel.isRunning ? Color.blue : Color.secondary.opacity(0.4), lineWidth: 4)
-                    }
-                Text(viewModel.isSpeaking ? "SPEAKING" : "SILENT")
-                    .font(.title2.monospaced().weight(.semibold))
-                Text(viewModel.isRunning ? "VAD running" : "VAD stopped")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(viewModel.isConnected ? "Socket connected" : "Socket disconnected")
-                    .font(.caption)
-                    .foregroundStyle(viewModel.isConnected ? .green : .secondary)
-                Text("Server: \(viewModel.serverState)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 24)
+        GeometryReader { geometry in
+            VStack(spacing: 14) {
+                diagnosticsView
+                    .frame(maxHeight: max(geometry.size.height * 0.34, 180))
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Backend")
-                    .font(.headline)
-                Text(config.baseURL.absoluteString)
-                    .font(.footnote.monospaced())
-                    .textSelection(.enabled)
-                Text(config.voiceWebSocketURL.absoluteString)
-                    .font(.footnote.monospaced())
-                    .textSelection(.enabled)
-                if !viewModel.downlinkFormat.isEmpty {
-                    Text("Downlink: \(viewModel.downlinkFormat)")
-                        .font(.footnote.monospaced())
+                conversationView
+                    .frame(minHeight: geometry.size.height * 0.45, maxHeight: .infinity)
+
+                Button {
+                    viewModel.isRunning ? viewModel.stop() : viewModel.start()
+                } label: {
+                    Text(viewModel.isRunning ? "Stop" : "Start")
+                        .frame(maxWidth: .infinity)
                 }
-                if !viewModel.playbackStatus.isEmpty {
-                    Text(viewModel.playbackStatus)
-                        .font(.footnote.monospaced())
-                }
-                if let refusalReason = config.refusalReason {
-                    Text(refusalReason)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+            .padding()
+        }
+    }
+
+    private var diagnosticsView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(viewModel.isSpeaking ? Color.green : Color.secondary.opacity(0.35))
+                        .frame(width: 18, height: 18)
+                        .overlay {
+                            Circle()
+                                .stroke(viewModel.isRunning ? Color.blue : Color.secondary.opacity(0.4), lineWidth: 2)
+                        }
+                    Text(viewModel.isSpeaking ? "SPEAKING" : "SILENT")
+                        .font(.headline.monospaced().weight(.semibold))
+                        .foregroundStyle(viewModel.isSpeaking ? .green : .secondary)
+                    Text(viewModel.isRunning ? "VAD running" : "VAD stopped")
                         .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if !viewModel.transcript.isEmpty || !viewModel.assistantText.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    if !viewModel.transcript.isEmpty {
-                        Text("Transcript")
-                            .font(.headline)
-                        Text(viewModel.transcript)
-                            .font(.body)
-                    }
-                    if !viewModel.assistantText.isEmpty {
-                        Text("Assistant")
-                            .font(.headline)
-                        Text(viewModel.assistantText)
-                            .font(.body)
-                    }
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
-            ScrollView {
+                diagnosticRow(
+                    title: "Socket",
+                    value: viewModel.isConnected ? "connected" : "disconnected",
+                    color: viewModel.isConnected ? .green : .secondary
+                )
+                diagnosticRow(title: "Server", value: viewModel.serverState)
+                diagnosticRow(title: "Route", value: viewModel.audioRouteStatus.replacingOccurrences(of: "Route: ", with: ""))
+                diagnosticRow(title: "Backend", value: config.baseURL.absoluteString, isSelectable: true)
+                diagnosticRow(title: "WebSocket", value: config.voiceWebSocketURL.absoluteString, isSelectable: true)
+
+                if !viewModel.downlinkFormat.isEmpty {
+                    diagnosticRow(title: "Downlink", value: viewModel.downlinkFormat)
+                }
+                if !viewModel.playbackStatus.isEmpty {
+                    diagnosticRow(title: "Playback", value: viewModel.playbackStatus)
+                }
+                if let refusalReason = config.refusalReason {
+                    diagnosticRow(title: "Config", value: refusalReason, color: .red)
+                }
+
                 Text(viewModel.eventLog)
                     .font(.footnote.monospaced())
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
+                    .padding(.top, 4)
             }
-            .frame(maxHeight: .infinity)
-
-            Button {
-                viewModel.isRunning ? viewModel.stop() : viewModel.start()
-            } label: {
-                Text(viewModel.isRunning ? "Stop" : "Start")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
+    }
+
+    private var conversationView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Conversation")
+                .font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if viewModel.transcript.isEmpty && viewModel.assistantText.isEmpty {
+                        Text("Transcript and assistant responses will appear here.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !viewModel.transcript.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Transcript")
+                                .font(.subheadline.weight(.semibold))
+                            Text(viewModel.transcript)
+                                .font(.body)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    if !viewModel.assistantText.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Assistant")
+                                .font(.subheadline.weight(.semibold))
+                            Text(viewModel.assistantText)
+                                .font(.body)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func diagnosticRow(
+        title: String,
+        value: String,
+        color: Color = .secondary,
+        isSelectable: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+            if isSelectable {
+                Text(value)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(color)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            } else {
+                Text(value)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(color)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
