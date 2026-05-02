@@ -1,6 +1,6 @@
 # TODO List Guidance
 
-TODO lists for new features or tasks live in `docs/requirements/` as markdown files.
+TODO lists for new features or tasks live in `docs/` as markdown files.
 
 ## File naming
 
