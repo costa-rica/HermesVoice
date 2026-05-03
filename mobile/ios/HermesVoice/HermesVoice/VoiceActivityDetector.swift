@@ -256,6 +256,7 @@ actor VoiceActivityDetector {
 @MainActor
 final class VADTestViewModel: ObservableObject {
     @Published var isRunning = false
+    @Published var isSessionRunning = false
     @Published var isSpeaking = false
     @Published var isConnected = false
     @Published var lastEvent = "silent"
@@ -267,9 +268,12 @@ final class VADTestViewModel: ObservableObject {
     @Published var playbackStatus = ""
     @Published var audioRouteStatus = "Route: unknown"
     @Published var settings: VoiceTuningSettings
+    @Published var historyMessages: [VoiceMessageRecord]
 
     private let detector: VoiceActivityDetector
     private let socket: VoiceSocket
+    private let onSessionStarted: (ServerFrame) -> Void
+    private let onConversationUpdated: () -> Void
     private let audioPlayer = AudioPlayer()
     private let audioSession = AVAudioSession.sharedInstance()
     private var eventTask: Task<Void, Never>?
@@ -282,16 +286,27 @@ final class VADTestViewModel: ObservableObject {
     private var rawIsSpeaking = false
     private var assistantPlaybackActive = false
     private var playbackGeneration = 0
+    private var pipelineGeneration = 0
     private var activeAssistantTurnID: String?
     private var canceledTurnIDs = Set<String>()
     private var bargeInConfirmed = false
     private var bargeCandidateID = 0
     private var bargeCandidateTask: Task<Void, Never>?
 
-    init(config: AppConfig, settings: VoiceTuningSettings) {
+    init(
+        config: AppConfig,
+        settings: VoiceTuningSettings,
+        sessionID: String?,
+        historyMessages: [VoiceMessageRecord],
+        onSessionStarted: @escaping (ServerFrame) -> Void,
+        onConversationUpdated: @escaping () -> Void
+    ) {
         self.settings = settings
+        self.historyMessages = historyMessages
+        self.onSessionStarted = onSessionStarted
+        self.onConversationUpdated = onConversationUpdated
         detector = VoiceActivityDetector(settings: settings)
-        socket = VoiceSocket(config: config)
+        socket = VoiceSocket(config: config, sessionID: sessionID)
         updateAudioRoute(shouldLog: false)
         routeObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
@@ -316,17 +331,32 @@ final class VADTestViewModel: ObservableObject {
                       settings.bluetoothBargeInDelay))
     }
 
+    func updateHistoryMessages(_ messages: [VoiceMessageRecord]) {
+        historyMessages = messages
+    }
+
     deinit {
         if let routeObserver {
             NotificationCenter.default.removeObserver(routeObserver)
         }
+        eventTask?.cancel()
+        socketTask?.cancel()
+        let detector = detector
+        let audioPlayer = audioPlayer
+        let socket = socket
+        Task {
+            await detector.stop()
+            await audioPlayer.stop()
+            await socket.disconnect(reason: "view model released")
+        }
     }
 
-    func start() {
-        guard !isRunning else { return }
-        isRunning = true
+    func startSession() {
+        guard !isSessionRunning else { return }
+        pipelineGeneration += 1
+        isSessionRunning = true
         events.removeAll()
-        eventLog = "Starting..."
+        eventLog = "Starting session..."
         transcript = ""
         assistantText = ""
         serverState = "idle"
@@ -342,15 +372,29 @@ final class VADTestViewModel: ObservableObject {
 
         socketTask = Task {
             let stream = await socket.events()
-            Task {
+            let connectTask = Task {
                 await socket.connect()
             }
+            defer { connectTask.cancel() }
 
             for await event in stream {
                 handleSocket(event)
             }
         }
+    }
 
+    func startVoice() {
+        if !isSessionRunning {
+            startSession()
+        }
+        guard !isRunning else { return }
+        isRunning = true
+        isSpeaking = false
+        lastEvent = "silent"
+        rawIsSpeaking = false
+        bargeInConfirmed = false
+        bargeCandidateTask?.cancel()
+        bargeCandidateTask = nil
         eventTask = Task {
             let stream = await detector.events()
             await detector.prepare()
@@ -368,32 +412,62 @@ final class VADTestViewModel: ObservableObject {
         }
     }
 
-    func stop() {
-        guard isRunning else { return }
+    func stopVoice() {
+        guard isRunning || eventTask != nil else { return }
+        isRunning = false
+        isSpeaking = false
+        lastEvent = "silent"
+        rawIsSpeaking = false
+        bargeInConfirmed = false
+        bargeCandidateTask?.cancel()
+        bargeCandidateTask = nil
+        eventTask?.cancel()
+        eventTask = nil
         Task {
             await detector.stop()
-            await MainActor.run {
-                isRunning = false
-                isSpeaking = false
-                lastEvent = "silent"
-                rawIsSpeaking = false
-                assistantPlaybackActive = false
-                bargeInConfirmed = false
-                bargeCandidateTask?.cancel()
-                bargeCandidateTask = nil
-            }
         }
+        append("Voice stopped.")
+    }
+
+    func stopSession() {
+        stopPipeline(reason: "session stopped")
+    }
+
+    func shutdownForSessionSwitch() {
+        stopPipeline(reason: "session changed")
+    }
+
+    private func stopPipeline(reason: String) {
+        guard isSessionRunning || isRunning || isConnected || assistantPlaybackActive || eventTask != nil || socketTask != nil else { return }
+        pipelineGeneration += 1
+        playbackGeneration += 1
+        isSessionRunning = false
+        isRunning = false
+        isConnected = false
+        isSpeaking = false
+        lastEvent = "silent"
+        rawIsSpeaking = false
+        assistantPlaybackActive = false
+        bargeInConfirmed = false
+        activeAssistantTurnID = nil
+        bargeCandidateTask?.cancel()
+        bargeCandidateTask = nil
+
         eventTask?.cancel()
         eventTask = nil
         socketTask?.cancel()
         socketTask = nil
+
         Task {
+            await detector.stop()
             await audioPlayer.stop()
-            await socket.disconnect(reason: "stopped")
+            await socket.disconnect(reason: reason)
         }
+        append(reason == "session changed" ? "Stopped previous session." : "Session stopped.")
     }
 
     private func handle(_ event: VADEvent) {
+        guard isRunning else { return }
         switch event {
         case .started(let at):
             rawIsSpeaking = true
@@ -444,9 +518,11 @@ final class VADTestViewModel: ObservableObject {
     }
 
     private func handleSocket(_ event: VoiceSocketEvent) {
+        guard isSessionRunning else { return }
         switch event {
         case .connected(let frame):
             isConnected = true
+            onSessionStarted(frame)
             downlinkFormat = frame.downlinkFormat ?? ""
             downlinkSampleRate = frame.downlinkSampleRate ?? 16000
             downlinkChannels = frame.downlinkChannels ?? 1
@@ -454,6 +530,7 @@ final class VADTestViewModel: ObservableObject {
         case .frame(let frame):
             handleServerFrame(frame)
         case .audioChunk(let data, let prelude):
+            let generation = pipelineGeneration
             let format = prelude.format ?? downlinkFormat
             if let turnID = prelude.turnID, canceledTurnIDs.contains(turnID) {
                 append("Ignored canceled audio chunk \(prelude.seq ?? 0): \(turnID)")
@@ -464,9 +541,14 @@ final class VADTestViewModel: ObservableObject {
             }
             append("Audio chunk \(prelude.seq ?? 0): \(data.count) bytes \(format)")
             playbackStatus = "Playing \(format) \(data.count) bytes"
-            markAssistantPlaybackActive(for: data, format: format)
+            let playbackToken = markAssistantPlaybackActive(for: data, format: format)
             Task {
                 do {
+                    guard await MainActor.run(body: {
+                        self.isSessionRunning &&
+                            self.pipelineGeneration == generation &&
+                            self.playbackGeneration == playbackToken
+                    }) else { return }
                     try await audioPlayer.play(
                         audio: data,
                         format: format,
@@ -474,10 +556,16 @@ final class VADTestViewModel: ObservableObject {
                         channels: downlinkChannels
                     )
                     await MainActor.run {
+                        guard self.isSessionRunning &&
+                            self.pipelineGeneration == generation &&
+                            self.playbackGeneration == playbackToken else { return }
                         playbackStatus = "Queued audio: \(data.count) bytes"
                     }
                 } catch {
                     await MainActor.run {
+                        guard self.isSessionRunning &&
+                            self.pipelineGeneration == generation &&
+                            self.playbackGeneration == playbackToken else { return }
                         playbackStatus = "Playback failed: \(error.localizedDescription)"
                         append(playbackStatus)
                     }
@@ -493,6 +581,7 @@ final class VADTestViewModel: ObservableObject {
     }
 
     private func handleServerFrame(_ frame: ServerFrame) {
+        guard isSessionRunning else { return }
         switch frame.event {
         case "transcript":
             transcript = frame.text ?? ""
@@ -509,6 +598,7 @@ final class VADTestViewModel: ObservableObject {
         case "turn_completed", "turn_end":
             if frame.event == "turn_end" {
                 serverState = "idle"
+                onConversationUpdated()
                 if let turnID = frame.turnID {
                     canceledTurnIDs.remove(turnID)
                     if activeAssistantTurnID == turnID {
@@ -564,6 +654,8 @@ final class VADTestViewModel: ObservableObject {
         let turnID = activeAssistantTurnID
         if let turnID {
             canceledTurnIDs.insert(turnID)
+        } else {
+            append("Interrupt had no active turn id; flushing local audio only.")
         }
 
         Task {
@@ -578,7 +670,7 @@ final class VADTestViewModel: ObservableObject {
         }
     }
 
-    private func markAssistantPlaybackActive(for data: Data, format: String) {
+    private func markAssistantPlaybackActive(for data: Data, format: String) -> Int {
         assistantPlaybackActive = true
         bargeInConfirmed = false
         playbackGeneration += 1
@@ -598,6 +690,7 @@ final class VADTestViewModel: ObservableObject {
                 }
             }
         }
+        return generation
     }
 
     private func estimatedPlaybackDuration(data: Data, format: String) -> TimeInterval {
@@ -631,11 +724,35 @@ struct VADTestView: View {
     @StateObject private var viewModel: VADTestViewModel
     let config: AppConfig
     let settings: VoiceTuningSettings
+    let sessionID: String?
+    let historyMessages: [VoiceMessageRecord]
+    @Binding private var shouldRun: Bool
+    @Binding private var sessionShouldRun: Bool
 
-    init(config: AppConfig, settings: VoiceTuningSettings) {
+    init(
+        config: AppConfig,
+        settings: VoiceTuningSettings,
+        sessionID: String?,
+        historyMessages: [VoiceMessageRecord],
+        shouldRun: Binding<Bool> = .constant(false),
+        sessionShouldRun: Binding<Bool> = .constant(false),
+        onSessionStarted: @escaping (ServerFrame) -> Void = { _ in },
+        onConversationUpdated: @escaping () -> Void = {}
+    ) {
         self.config = config
         self.settings = settings
-        _viewModel = StateObject(wrappedValue: VADTestViewModel(config: config, settings: settings))
+        self.sessionID = sessionID
+        self.historyMessages = historyMessages
+        _shouldRun = shouldRun
+        _sessionShouldRun = sessionShouldRun
+        _viewModel = StateObject(wrappedValue: VADTestViewModel(
+            config: config,
+            settings: settings,
+            sessionID: sessionID,
+            historyMessages: historyMessages,
+            onSessionStarted: onSessionStarted,
+            onConversationUpdated: onConversationUpdated
+        ))
     }
 
     var body: some View {
@@ -647,19 +764,66 @@ struct VADTestView: View {
                 conversationView
                     .frame(minHeight: geometry.size.height * 0.45, maxHeight: .infinity)
 
-                Button {
-                    viewModel.isRunning ? viewModel.stop() : viewModel.start()
-                } label: {
-                    Text(viewModel.isRunning ? "Stop" : "Start")
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 12) {
+                    Button {
+                        shouldRun.toggle()
+                    } label: {
+                        Text(viewModel.isRunning ? "Voice Stop" : "Voice Start")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    Button {
+                        sessionShouldRun.toggle()
+                    } label: {
+                        Text(viewModel.isSessionRunning ? "Session Stop" : "Session Start")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
             .padding()
         }
         .onChange(of: settings) { _, newSettings in
             viewModel.updateSettings(newSettings)
+        }
+        .onChange(of: historyMessages) { _, newMessages in
+            viewModel.updateHistoryMessages(newMessages)
+        }
+        .onChange(of: shouldRun) { _, newValue in
+            applyVoiceIntent(newValue)
+        }
+        .onChange(of: sessionShouldRun) { _, newValue in
+            applySessionIntent(newValue)
+        }
+        .onAppear {
+            applySessionIntent(sessionShouldRun || shouldRun)
+            applyVoiceIntent(shouldRun)
+        }
+        .onDisappear {
+            viewModel.shutdownForSessionSwitch()
+        }
+    }
+
+    private func applyVoiceIntent(_ shouldRun: Bool) {
+        if shouldRun {
+            if !sessionShouldRun {
+                sessionShouldRun = true
+            }
+            viewModel.startVoice()
+        } else {
+            viewModel.stopVoice()
+        }
+    }
+
+    private func applySessionIntent(_ shouldRun: Bool) {
+        if shouldRun {
+            viewModel.startSession()
+        } else {
+            self.shouldRun = false
+            viewModel.stopSession()
         }
     }
 
@@ -684,12 +848,25 @@ struct VADTestView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 diagnosticRow(
+                    title: "Voice",
+                    value: viewModel.isRunning ? "listening" : "not listening",
+                    color: viewModel.isRunning ? .green : .secondary
+                )
+                diagnosticRow(
+                    title: "Session",
+                    value: viewModel.isSessionRunning ? "running" : "stopped",
+                    color: viewModel.isSessionRunning ? .green : .secondary
+                )
+                diagnosticRow(
                     title: "Socket",
                     value: viewModel.isConnected ? "connected" : "disconnected",
                     color: viewModel.isConnected ? .green : .secondary
                 )
                 diagnosticRow(title: "Server", value: viewModel.serverState)
                 diagnosticRow(title: "Route", value: viewModel.audioRouteStatus.replacingOccurrences(of: "Route: ", with: ""))
+                if let sessionID {
+                    diagnosticRow(title: "Session ID", value: sessionID, isSelectable: true)
+                }
                 diagnosticRow(title: "Backend", value: config.baseURL.absoluteString, isSelectable: true)
                 diagnosticRow(title: "WebSocket", value: config.voiceWebSocketURL.absoluteString, isSelectable: true)
 
@@ -726,10 +903,19 @@ struct VADTestView: View {
                 .font(.headline)
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    if viewModel.transcript.isEmpty && viewModel.assistantText.isEmpty {
+                    if viewModel.historyMessages.isEmpty && viewModel.transcript.isEmpty && viewModel.assistantText.isEmpty {
                         Text("Transcript and assistant responses will appear here.")
                             .font(.body)
                             .foregroundStyle(.secondary)
+                    }
+                    ForEach(viewModel.historyMessages) { message in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(message.role == "assistant" ? "Assistant" : "You")
+                                .font(.subheadline.weight(.semibold))
+                            Text(message.text)
+                                .font(.body)
+                                .textSelection(.enabled)
+                        }
                     }
                     if !viewModel.transcript.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {

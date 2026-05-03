@@ -24,6 +24,8 @@
 		C9HV00022C00000000000002 /* VoiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9HV00020C00000000000002 /* VoiceProtocol.swift */; };
 		C9HV00032C00000000000002 /* VoiceSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9HV00030C00000000000002 /* VoiceSocket.swift */; };
 		C9HV00042C00000000000002 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9HV00040C00000000000002 /* AudioPlayer.swift */; };
+		C9HV00052C00000000000003 /* AuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9HV00050C00000000000003 /* AuthClient.swift */; };
+		C9HV00062C00000000000004 /* VoiceSessionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9HV00060C00000000000004 /* VoiceSessionClient.swift */; };
 		DEFC34EF2BBA8AD100E174E9 /* silero_vad.onnx in Resources */ = {isa = PBXBuildFile; fileRef = DEFC34F02BBA8AD100E174E9 /* silero_vad.onnx */; };
 /* End PBXBuildFile section */
 
@@ -66,6 +68,8 @@
 		C9HV00020C00000000000002 /* VoiceProtocol.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceProtocol.swift; sourceTree = "<group>"; };
 		C9HV00030C00000000000002 /* VoiceSocket.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceSocket.swift; sourceTree = "<group>"; };
 		C9HV00040C00000000000002 /* AudioPlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
+		C9HV00050C00000000000003 /* AuthClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
+		C9HV00060C00000000000004 /* VoiceSessionClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceSessionClient.swift; sourceTree = "<group>"; };
 		DEFC34EE2BBA8AD100E174E9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DEFC34F02BBA8AD100E174E9 /* silero_vad.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; path = silero_vad.onnx; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -127,6 +131,8 @@
 				C9HV00030C00000000000002 /* VoiceSocket.swift */,
 				C9HV00020C00000000000002 /* VoiceProtocol.swift */,
 				C9HV00040C00000000000002 /* AudioPlayer.swift */,
+				C9HV00050C00000000000003 /* AuthClient.swift */,
+				C9HV00060C00000000000004 /* VoiceSessionClient.swift */,
 				C924F36129DDB15D00A440A5 /* Extension.swift */,
 				C924F35D29DDAE8200A440A5 /* AppConfig.swift */,
 				C924F35729DDACED00A440A5 /* SherpaOnnx-Bridging-Header.h */,
@@ -314,6 +320,8 @@
 				C9HV00032C00000000000002 /* VoiceSocket.swift in Sources */,
 				C9HV00022C00000000000002 /* VoiceProtocol.swift in Sources */,
 				C9HV00042C00000000000002 /* AudioPlayer.swift in Sources */,
+				C9HV00052C00000000000003 /* AuthClient.swift in Sources */,
+				C9HV00062C00000000000004 /* VoiceSessionClient.swift in Sources */,
 				C924F35E29DDAE8200A440A5 /* AppConfig.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

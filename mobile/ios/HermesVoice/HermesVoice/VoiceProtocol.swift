@@ -5,12 +5,18 @@ struct ClientHelloFrame: Encodable {
     let client = "ios"
     let clientVersion = "0.0.1-dev"
     let acceptedDownlinkFormats = ["wav_pcm16", "aac_adts"]
+    let sessionID: String?
+
+    init(sessionID: String? = nil) {
+        self.sessionID = sessionID
+    }
 
     enum CodingKeys: String, CodingKey {
         case event
         case client
         case clientVersion = "client_version"
         case acceptedDownlinkFormats = "accepted_downlink_formats"
+        case sessionID = "session_id"
     }
 }
 
@@ -51,10 +57,13 @@ struct PingFrame: Encodable {
 
 struct ServerFrame: Decodable, Equatable {
     let event: String
+    let sessionID: String?
     let conversationID: String?
     let downlinkFormat: String?
     let downlinkSampleRate: Int?
     let downlinkChannels: Int?
+    let resumed: Bool?
+    let created: Bool?
     let turnID: String?
     let state: String?
     let text: String?
@@ -68,10 +77,13 @@ struct ServerFrame: Decodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case event
+        case sessionID = "session_id"
         case conversationID = "conversation_id"
         case downlinkFormat = "downlink_format"
         case downlinkSampleRate = "downlink_sample_rate"
         case downlinkChannels = "downlink_channels"
+        case resumed
+        case created
         case turnID = "turn_id"
         case state
         case text

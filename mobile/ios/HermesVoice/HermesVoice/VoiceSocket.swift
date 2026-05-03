@@ -3,6 +3,7 @@ import os
 
 actor VoiceSocket {
     private let config: AppConfig
+    private let sessionID: String?
     private let logger = Logger(subsystem: "com.dashanddata.HermesVoice", category: "voice-socket")
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -11,8 +12,9 @@ actor VoiceSocket {
     private var continuation: AsyncStream<VoiceSocketEvent>.Continuation?
     private var pendingAudioPrelude: ServerFrame?
 
-    init(config: AppConfig) {
+    init(config: AppConfig, sessionID: String? = nil) {
         self.config = config
+        self.sessionID = sessionID
     }
 
     func events() -> AsyncStream<VoiceSocketEvent> {
@@ -47,7 +49,7 @@ actor VoiceSocket {
         logger.info("Voice socket connecting to \(self.config.voiceWebSocketURL.absoluteString, privacy: .public)")
 
         do {
-            try await sendJSON(ClientHelloFrame())
+            try await sendJSON(ClientHelloFrame(sessionID: sessionID))
             await receiveLoop()
         } catch {
             let message = error.localizedDescription
