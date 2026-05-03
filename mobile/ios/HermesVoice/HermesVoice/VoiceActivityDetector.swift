@@ -478,6 +478,7 @@ final class VADTestViewModel: ObservableObject {
                 isSpeaking = true
                 lastEvent = "speaking"
                 append(String(format: "Speech start at %.2fs", at))
+                checkForLocalPlaybackInterruption(at: at)
             }
         case .ended(let at, let duration, let samples):
             rawIsSpeaking = false
@@ -638,6 +639,19 @@ final class VADTestViewModel: ObservableObject {
                 guard self.bargeCandidateID == candidateID else { return }
                 guard self.rawIsSpeaking, self.assistantPlaybackActive, !self.bargeInConfirmed else { return }
                 self.confirmBargeIn()
+            }
+        }
+    }
+
+    private func checkForLocalPlaybackInterruption(at: TimeInterval) {
+        Task { [weak self] in
+            guard let self else { return }
+            let isPlayingAudio = await audioPlayer.isPlayingAudio()
+            await MainActor.run {
+                guard self.rawIsSpeaking, isPlayingAudio, !self.bargeInConfirmed else { return }
+                self.assistantPlaybackActive = true
+                self.append(String(format: "Potential local audio interrupt at %.2fs", at))
+                self.scheduleBargeInConfirmation()
             }
         }
     }

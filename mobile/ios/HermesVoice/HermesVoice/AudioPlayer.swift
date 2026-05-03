@@ -9,6 +9,7 @@ actor AudioPlayer {
 
     private var isPrepared = false
     private var scheduledBuffers = 0
+    private var pendingBuffers = 0
 
     func play(audio data: Data, format: String, sampleRate: Int, channels: Int) async throws {
         guard !data.isEmpty else {
@@ -27,6 +28,11 @@ actor AudioPlayer {
         playerNode.stop()
         playerNode.reset()
         scheduledBuffers = 0
+        pendingBuffers = 0
+    }
+
+    func isPlayingAudio() -> Bool {
+        playerNode.isPlaying && pendingBuffers > 0
     }
 
     private func prepareIfNeeded(sampleRate: Int, channels: Int) throws -> AVAudioFormat {
@@ -83,11 +89,19 @@ actor AudioPlayer {
         }
 
         scheduledBuffers += 1
+        pendingBuffers += 1
         let bufferNumber = scheduledBuffers
-        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [logger] _ in
+        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [logger, weak self] _ in
+            Task {
+                await self?.markBufferPlayed()
+            }
             logger.info("Played PCM16 buffer \(bufferNumber, privacy: .public)")
         }
         logger.info("Scheduled PCM16 audio: \(data.count, privacy: .public) bytes")
+    }
+
+    private func markBufferPlayed() {
+        pendingBuffers = max(0, pendingBuffers - 1)
     }
 }
 
